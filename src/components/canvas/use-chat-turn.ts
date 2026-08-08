@@ -77,7 +77,7 @@ export function useChatTurn(): { running: boolean; run: (tabId: string, prompt: 
         notes: extractNotes(reportText),
         followUps: extractFollowUpQuestions(reportText),
         difficulty: result.difficulty || "intermediate",
-        title: fresh ? fresh.title : deriveTitle(prompt),
+        title: fresh && fresh.title && fresh.title !== "Untitled Research" ? fresh.title : deriveTitle(prompt),
         intelligence: result.intelligence
           ? {
               ...result.intelligence,

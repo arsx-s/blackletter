@@ -38,9 +38,9 @@ export function StatusBar() {
             "px-2 py-0.5 font-sans text-2xs transition-colors",
             !state.prefs.developerMode ? "bg-bone/8 text-bone" : "text-muted hover:text-bone",
           )}
-          title="Intelligence mode — clean interface, system status view"
+          title="Switch to the simple BlackLetter interface"
         >
-          Intelligence
+          Simple
         </button>
         <button
           onClick={() => workspaceStore.setPrefs({ developerMode: true })}
@@ -48,7 +48,7 @@ export function StatusBar() {
             "px-2 py-0.5 font-sans text-2xs transition-colors",
             state.prefs.developerMode ? "bg-bone/8 text-bone" : "text-muted hover:text-bone",
           )}
-          title="Developer mode — diagnostics, telemetry, and run traces"
+          title="Developer Mode — full research interface"
         >
           Developer
         </button>

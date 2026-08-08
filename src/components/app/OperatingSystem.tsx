@@ -18,6 +18,7 @@ import { Dashboard } from "./Dashboard";
 import { GlobalSearch } from "./GlobalSearch";
 import { NewSessionModal } from "./NewSessionModal";
 import { FloatingAiChat } from "./FloatingAiChat";
+import { DefaultShell } from "../simple/DefaultShell";
 
 const ResearchWorkspace = lazy(() => import("../research/ResearchWorkspace").then((m) => ({ default: m.ResearchWorkspace })));
 const NotebookView = lazy(() => import("./NotebookView").then((m) => ({ default: m.NotebookView })));
@@ -147,6 +148,12 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
   }, [state.prefs.documentsViewOpen]);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1024px)").matches) {
+      workspaceStore.setPrefs({ sidebarOpen: false });
+    }
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "c" || e.key === "C")) {
         e.preventDefault();
@@ -155,6 +162,10 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "g" || e.key === "G")) {
         e.preventDefault();
         setView((v) => (v === "graph" ? "home" : "graph"));
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "m" || e.key === "M")) {
+        e.preventDefault();
+        workspaceStore.setPrefs({ developerMode: !workspaceStore.getState().prefs.developerMode });
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -187,6 +198,8 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
         )}
       </AnimatePresence>
 
+      {state.prefs.developerMode ? (
+        <>
       <header className="h-12 shrink-0 flex items-center gap-2 px-3 border-b border-border bg-background/90 z-30">
         <button
           onClick={() => workspaceStore.toggleSidebar()}
@@ -291,17 +304,50 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
         >
           <MessageSquare size={15} />
         </button>
+        <div className="hidden md:flex items-center border border-border rounded-sm overflow-hidden">
+          <button
+            onClick={() => workspaceStore.setPrefs({ developerMode: false })}
+            className={cn(
+              "px-2 py-1 font-sans text-2xs transition-colors",
+              !state.prefs.developerMode ? "bg-bone/8 text-bone" : "text-muted hover:text-bone",
+            )}
+            title="BlackLetter — the simple research interface"
+          >
+            Simple
+          </button>
+          <button
+            onClick={() => workspaceStore.setPrefs({ developerMode: true })}
+            className={cn(
+              "px-2 py-1 font-sans text-2xs transition-colors",
+              state.prefs.developerMode ? "bg-bone/8 text-bone" : "text-muted hover:text-bone",
+            )}
+            title="Developer Mode active"
+          >
+            Developer
+          </button>
+        </div>
         <button
-          onClick={() => setView((v) => (v === "system" ? "home" : "system"))}
+          onClick={() => setView("workshop")}
           className={cn(
             "flex items-center gap-1.5 px-2.5 py-1 rounded-sm border border-border hover:border-accent/40 font-sans text-xs text-bone/80 transition-colors",
-            view === "system" && "border-accent/40 bg-bone/5",
+            view === "workshop" && "border-accent/40 bg-bone/5",
           )}
-          title="System status — interface mode, model, and diagnostics"
+          title="Workshop — settings"
         >
-          <Activity size={12} className="text-muted" />
-          <span className="hidden md:inline">{state.prefs.developerMode ? "Developer" : "System"}</span>
+          <Settings size={12} className="text-muted" />
+          <span className="hidden md:inline">Settings</span>
         </button>
+        {userName && (
+          <span
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-sm border border-border font-sans text-xs text-bone/70 max-w-36"
+            title={`Working as ${userName}`}
+          >
+            <span className="w-4 h-4 rounded-full bg-accent/15 border border-accent/25 flex items-center justify-center font-mono text-2xs text-accent shrink-0">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+            <span className="truncate">{userName}</span>
+          </span>
+        )}
         <Button variant="ghost" size="sm" className="hidden sm:flex" onClick={onExit}><LogOut size={13} /> Exit</Button>
       </header>
 
@@ -309,12 +355,20 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
 
       <div className="flex flex-1 min-h-0">
         {state.prefs.sidebarOpen && (
-          <div className="flex h-full shrink-0" style={{ width: state.prefs.sidebarWidth }}>
+          <div className="hidden lg:flex h-full shrink-0" style={{ width: state.prefs.sidebarWidth }}>
             <LeftSidebar />
             <div
               onPointerDown={(e) => { e.preventDefault(); setResizing("sidebar"); }}
               className="w-1 cursor-col-resize hover:bg-accent/30 active:bg-accent/50 transition-colors shrink-0"
             />
+          </div>
+        )}
+        {state.prefs.sidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-40 flex">
+            <div className="h-full max-w-[85vw] shrink-0 shadow-premium-lg" style={{ width: Math.min(state.prefs.sidebarWidth, 320) }}>
+              <LeftSidebar />
+            </div>
+            <div className="flex-1 bg-black/30" onClick={() => workspaceStore.setPrefs({ sidebarOpen: false })} />
           </div>
         )}
 
@@ -347,6 +401,12 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <NewSessionModal isOpen={newSessionOpen} onClose={() => setNewSessionOpen(false)} />
+        </>
+      ) : (
+        <div className="flex-1 min-h-0">
+          <DefaultShell onExit={onExit} />
+        </div>
+      )}
     </div>
   );
 }

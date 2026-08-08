@@ -61,6 +61,8 @@ declare module "lucide-react" {
   export const Cpu: Icon;
   export const UploadCloud: Icon;
   export const SearchX: Icon;
+  export const ArrowUp: Icon;
+  export const Paperclip: Icon;
   export const StickyNote: Icon;
   export const Workflow: Icon;
   export const History: Icon;
