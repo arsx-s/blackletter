@@ -499,7 +499,7 @@ function StatCounter({ value, label, suffix = "" }: { value: number; label: stri
 }
 
 /* ── Roadmap ── */
-type RoadmapStatus = "completed" | "developing" | "planned";
+type RoadmapStatus = "completed" | "developing" | "upcoming";
 
 interface RoadmapPhase {
   version: string;
@@ -513,29 +513,29 @@ interface RoadmapPhase {
 const ROADMAP_META: Record<RoadmapStatus, { label: string; color: string }> = {
   completed: { label: "Completed", color: "#3B6E4F" },
   developing: { label: "In Development", color: "#72383D" },
-  planned: { label: "Planned", color: "#AC9C8D" },
+  upcoming: { label: "Upcoming", color: "#AC9C8D" },
 };
 
 const ROADMAP_DATA: RoadmapPhase[] = [
   {
     version: "v1.0",
     title: "Learning Engine",
-    description: "The intelligence layer that shapes every explanation around what you already know and what you are missing.",
+    description: "A tutoring layer that tracks what you already know, finds what you are missing, and paces explanations against both.",
     icon: Brain,
     status: "completed",
     features: [
       "Adaptive explanations",
-      "Document understanding",
       "Knowledge-gap detection",
-      "Personalized learning",
-      "AI tutoring",
+      "Prerequisite tutoring",
+      "Learning preferences",
+      "Document understanding",
       "Structured reports",
     ],
   },
   {
     version: "v2.0",
     title: "Research Workspace",
-    description: "A workspace built for real research — tabs, folders, documents, and history that survive between sessions.",
+    description: "A workspace for real research — tabs, folders, documents, and history that carry over between visits.",
     icon: Layers,
     status: "completed",
     features: [
@@ -552,54 +552,53 @@ const ROADMAP_DATA: RoadmapPhase[] = [
   },
   {
     version: "v3.0",
-    title: "Knowledge Engine",
-    description: "Concept maps recorded while each report is written — what relates to what, and why.",
+    title: "Knowledge & Intelligence Engine",
+    description: "Every session builds a knowledge graph, and every answer is checked against it — grounded, scored, and explained.",
     icon: Network,
     status: "completed",
     features: [
       "Automatic knowledge graphs",
-      "Concept relationships",
-      "Entity extraction",
+      "Concept extraction",
       "Learning paths",
-      "Graph memory",
-      "Knowledge exploration",
       "Graph search",
-      "Context awareness",
+      "Graph memory",
+      "Retrieval & grounding",
+      "Answer confidence scoring",
+      "Context-aware prompts",
     ],
   },
   {
     version: "v4.0",
     title: "Research Canvas",
-    description: "An infinite canvas where research — documents, graphs, notes, and answers — is laid out, linked, and freely arranged.",
+    description: "An infinite canvas where sessions, documents, graphs, notes, and answers are placed side by side and linked.",
     icon: Layout,
     status: "developing",
     features: [
-      "Infinite workspace",
-      "Drag-and-drop research",
-      "Notes",
-      "Diagrams",
-      "Mind maps",
-      "AI blocks",
-      "Documents",
-      "Knowledge graph",
-      "Everything connected",
+      "Infinite canvas",
+      "Drag-and-drop layout",
+      "Sticky notes",
+      "Diagrams & mind maps",
+      "AI session blocks",
+      "Report blocks",
+      "Document blocks",
+      "Knowledge graph blocks",
+      "Linked blocks & edges",
     ],
   },
   {
     version: "v5.0",
     title: "Offline Intelligence",
-    description: "The full system with no network — local models, local embeddings, encrypted storage, and sync on your terms.",
+    description: "The same three engines with no network: local models, local embeddings, local storage, and sync on your terms.",
     icon: Shield,
-    status: "planned",
+    status: "upcoming",
     features: [
-      "Local AI",
+      "Local AI models",
       "Offline research",
-      "Encrypted storage",
-      "Private knowledge",
-      "Hybrid AI",
-      "Offline embeddings",
-      "Local vector database",
-      "Automatic cloud synchronization",
+      "Local embeddings",
+      "Local vector storage",
+      "Encrypted vault",
+      "Encrypted sync",
+      "Hybrid AI switching",
     ],
   },
 ];
@@ -645,14 +644,14 @@ function RoadmapItem({ phase, index }: { phase: RoadmapPhase; index: number }) {
               <span className="text-2xs px-2 py-0.5 rounded-sm font-semibold uppercase tracking-wider" style={{ backgroundColor: `${meta.color}1a`, color: meta.color }}>{meta.label}</span>
             </div>
             <h3 className="text-lg lg:text-xl font-semibold mt-1" style={{ fontFamily: "'Instrument Serif', serif", color: "#322D29" }}>{phase.title}</h3>
-            <p className="text-sm mt-1 leading-relaxed max-w-xl" style={{ fontFamily: "'Inter', sans-serif", color: phase.status === "planned" ? "rgba(114,56,61,0.45)" : "#72383D" }}>{phase.description}</p>
+            <p className="text-sm mt-1 leading-relaxed max-w-xl" style={{ fontFamily: "'Inter', sans-serif", color: phase.status === "upcoming" ? "rgba(114,56,61,0.45)" : "#72383D" }}>{phase.description}</p>
             {phase.status === "developing" && (
               <div className="mt-3 h-1.5 w-44 rounded-full overflow-hidden" style={{ backgroundColor: "#72383D22" }}>
                 <div className="h-full rounded-full roadmap-progress" style={{ backgroundColor: "#72383D" }} />
               </div>
             )}
-            {phase.status === "planned" && (
-              <span className="mt-1 inline-block font-mono text-[10px] uppercase tracking-widest opacity-50" style={{ color: "#AC9C8D" }}>Locked — ships in a future release</span>
+            {phase.status === "upcoming" && (
+              <span className="mt-1 inline-block font-mono text-[10px] uppercase tracking-widest opacity-50" style={{ color: "#AC9C8D" }}>Ships in a future release</span>
             )}
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
