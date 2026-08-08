@@ -46,7 +46,7 @@ function splitDocText(docText: string): RetrievedChunk[] {
 
 export function buildCorpus(state: GraphState): RetrievedChunk[] {
   const corpus: RetrievedChunk[] = [];
-  let position = 0;
+  const position = 0;
 
   if (state.documentText && state.documentText.trim()) {
     corpus.push(...splitDocText(state.documentText));

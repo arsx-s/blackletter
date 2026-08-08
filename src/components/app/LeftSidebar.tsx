@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Archive, ChevronDown, ChevronRight, Copy, File, FileText, Folder,
-  FolderOpen, FolderPlus, MoreHorizontal, Pencil, Plus, Pin, Star, Trash2, X,
+  FolderOpen, FolderPlus, MoreHorizontal, Pencil, Plus, Pin, Star, Trash2,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { workspaceStore } from "../../stores/workspace-store";
@@ -34,7 +34,6 @@ export function LeftSidebar() {
     if (!id) return;
     const name = workspaceStore.getState().workspaces.find((w) => w.id === id)?.name ?? "";
     setRenaming({ kind: "workspace", id, value: name });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.pendingRenameWorkspaceId]);
   const visibleWorkspaces = state.workspaces.filter((w) => !w.archived);
   const archived = state.workspaces.filter((w) => w.archived);

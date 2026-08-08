@@ -69,7 +69,7 @@ export class LearnerProfileManager {
         const parsed = JSON.parse(raw) as LearnerProfile;
         return parsed;
       }
-    } catch {}
+    } catch { /* storage unavailable; fall back to fresh profile */ }
 
     const fresh = createLearnerProfile();
     try {

@@ -44,7 +44,7 @@ export class SessionStore {
           }
         }
       }
-    } catch {}
+    } catch { /* storage unavailable */ }
   }
 
   private saveToStorage(sessionId: string): void {
@@ -53,7 +53,7 @@ export class SessionStore {
       if (data) {
         localStorage.setItem(this.storageKey(sessionId), JSON.stringify(data));
       }
-    } catch {}
+    } catch { /* storage unavailable */ }
   }
 
   createSession(subjectId: string, subjectName: string, modeId: string): string {

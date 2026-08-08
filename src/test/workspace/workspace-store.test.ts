@@ -91,7 +91,7 @@ describe("workspace store", () => {
     store.setFolderColor(folderId, "#72383D");
     store.toggleFolderCollapsed(folderId);
     store.renameFolder(folderId, "Tort");
-    let folder = store.getState().folders.find((f) => f.id === folderId)!;
+    const folder = store.getState().folders.find((f) => f.id === folderId)!;
     expect(folder.name).toBe("Tort");
     expect(folder.color).toBe("#72383D");
     expect(folder.collapsed).toBe(true);
@@ -122,7 +122,7 @@ describe("workspace store", () => {
     store.renameDocument(docId, "brief-final.pdf");
     const folderId = store.createFolder(ws, "Evidence");
     store.moveDocument(docId, folderId);
-    let doc = store.getState().documents.find((d) => d.id === docId)!;
+    const doc = store.getState().documents.find((d) => d.id === docId)!;
     expect(doc.name).toBe("brief-final.pdf");
     expect(doc.folderId).toBe(folderId);
     store.deleteDocument(docId);
@@ -293,7 +293,7 @@ describe("workspace store", () => {
     store.toggleKnowledgeNode(node.id, "favorite");
     store.updateKnowledgeNode(node.id, { difficulty: "advanced" });
     store.setKnowledgeNodeColor(node.id, "#72383D");
-    let current = store.getState().knowledge.nodes.find((n) => n.id === node.id)!;
+    const current = store.getState().knowledge.nodes.find((n) => n.id === node.id)!;
     expect(current.pinned).toBe(true);
     expect(current.favorite).toBe(true);
     expect(current.difficulty).toBe("advanced");

@@ -187,7 +187,7 @@ export function extractFollowUpQuestions(text: string): string[] {
   const sentences = text.split(/[.!]\s+/);
   for (const s of sentences) {
     if (qRegex.test(s.trim()) && questions.length < 6) {
-      questions.push(s.trim().replace(/^\d+[\.\)]\s*/, ""));
+      questions.push(s.trim().replace(/^\d+[.)]\s*/, ""));
     }
   }
   if (questions.length === 0) {

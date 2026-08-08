@@ -46,7 +46,7 @@ describe("ingest", () => {
   });
 
   it("reports gap hits with prerequisites", () => {
-    let g = applyDerivations(emptyGraph(), [
+    const g = applyDerivations(emptyGraph(), [
       {
         nodes: [
           { label: "Neural Networks", type: "concept", tabId: "x" },

@@ -13,7 +13,7 @@ export async function executeLLM(ctx: PipelineContext): Promise<ExecutionResult>
   const documentText = ctx.documentText || undefined;
 
   let response = "";
-  let retries = 0;
+  const retries = 0;
 
   try {
     for await (const chunk of generateStream({

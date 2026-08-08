@@ -40,7 +40,7 @@ export class KnowledgeObjectStore {
           }
         }
       }
-    } catch {}
+    } catch { /* storage unavailable; object stays in memory */ }
   }
 
   private saveIndex(): void {

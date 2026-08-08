@@ -66,7 +66,7 @@ export async function* streamOpenRouter(
 
       if (!response.ok) {
         let errorBody = "";
-        try { errorBody = await response.text(); } catch { }
+        try { errorBody = await response.text(); } catch { /* body may be unreadable */ }
 
         if (response.status === 429) {
           let retryAfter = 10;

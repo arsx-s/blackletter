@@ -42,7 +42,7 @@ export function renderMarkdown(text: string): string {
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`([^`]+)`/g, function (_m, c) { return `<code style="${S.code}">${h(typeof c === "string" ? c : "")}</code>`; })
     .replace(/^> (.+)$/gm, `<blockquote style="${S.bq}">$1</blockquote>`)
-    .replace(/^\- (.+)$/gm, `<li style="${S.li};list-style-type:disc">$1</li>`)
+    .replace(/^- (.+)$/gm, `<li style="${S.li};list-style-type:disc">$1</li>`)
     .replace(/^\d+\. (.+)$/gm, `<li style="${S.li};list-style-type:decimal">$1</li>`)
     .replace(/\n\n/g, `</p><p style="${S.p}">`)
     .replace(/\n/g, "<br />");
@@ -67,6 +67,7 @@ export function renderMarkdown(text: string): string {
     return tbl;
   });
 
+  // eslint-disable-next-line no-control-regex -- \x00 sentinel placeholders mark code blocks
   processed = processed.replace(/\x00CODE\d+\x00/g, (m) => blocks[parseInt(m.replace(/\D/g, ""))]);
   return processed;
 }

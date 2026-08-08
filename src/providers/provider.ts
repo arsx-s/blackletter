@@ -12,7 +12,7 @@ export async function* generateStream(req: AiRequest): AsyncGenerator<string, vo
 export async function generateResponse(req: AiRequest): Promise<AiResponse> {
   const start = performance.now();
   let text = "";
-  let retries = 0;
+  const retries = 0;
 
   try {
     for await (const chunk of generateStream(req)) {

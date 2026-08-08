@@ -82,7 +82,7 @@ export function createStateMachine(def: GraphDefinition) {
     const visitedNodes: string[] = [];
     const executionTimes: Record<string, number> = {};
     let currentNode = start;
-    let maxIterations = 100;
+    const maxIterations = 100;
     let iteration = 0;
 
     log("GRAPH", `Starting execution at node "${start}"`);

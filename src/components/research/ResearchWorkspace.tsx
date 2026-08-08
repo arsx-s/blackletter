@@ -144,6 +144,30 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
   const [gapHits, setGapHits] = useState<ReturnType<typeof workspaceStore.graphGapHits>>([]);
   const [gapQuery, setGapQuery] = useState("");
 
+  useEffect(() => {
+    if (gapQuery === input.trim()) return;
+    setGapQuery(input.trim());
+    const timer = setTimeout(() => {
+      if (input.trim().length < 6) {
+        setGapHits([]);
+        return;
+      }
+      try {
+        setGapHits(workspaceStore.graphGapHits(input.trim()).slice(0, 3));
+      } catch {
+        setGapHits([]);
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    const t = workspaceStore.getState().tabs.find((x) => x.id === tabId);
+    if (el && t) el.scrollTop = t.scrollTop ?? 0;
+  }, [tabId]);
+
   if (!tab) return null;
 
   const docs = tab.documentIds
@@ -305,30 +329,6 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
   const attachFileInput = (node: HTMLInputElement | null) => {
     fileInputRef.current = node;
   };
-
-  useEffect(() => {
-    if (gapQuery === input.trim()) return;
-    setGapQuery(input.trim());
-    const timer = setTimeout(() => {
-      if (input.trim().length < 6) {
-        setGapHits([]);
-        return;
-      }
-      try {
-        setGapHits(workspaceStore.graphGapHits(input.trim()).slice(0, 3));
-      } catch {
-        setGapHits([]);
-      }
-    }, 450);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    const t = workspaceStore.getState().tabs.find((x) => x.id === tabId);
-    if (el && t) el.scrollTop = t.scrollTop ?? 0;
-  }, [tabId]);
 
   return (
     <div className="h-full flex flex-col min-h-0">

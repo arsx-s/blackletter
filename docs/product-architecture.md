@@ -21,7 +21,7 @@ Everything runs client-side first. All user data is written to IndexedDB in the 
 │ React 19 + TypeScript, Tailwind CSS, Framer Motion, Lucide       │
 │  Compass · Notebook · Workshop · Canvas · Research Workspace    │
 ├──────────────────────────── State layer ─────────────────────────┤
-│  Zustand stores (workspace, sessions, prefs, graph)             │
+│  Workspace store (workspace, sessions, prefs, graph)             │
 │  Persisted to IndexedDB with localStorage fallback              │
 ├───────────────────────── Workflow layer ────────────────────────┤
 │  LangGraph-inspired pipeline: intent → subject → evidence →     │
@@ -89,5 +89,4 @@ Practically all of BlackLetter runs on the device. The only outward boundary is 
 ## Related documents
 
 - `docs/Design-System.md` — visual and interaction design language
-- `docs/Roadmap.md` — version history and forward plan
 - `README.md` — the public product

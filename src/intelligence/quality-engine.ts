@@ -134,7 +134,7 @@ export class QualityEngine {
     const hasCode = /`[^`]+`/m.test(response);
     if (hasCode) score += 0.1;
 
-    const hasEmojiIcons = /[🎯⏱📋🧠💡⚠️🎉✅❌📝🎓🏆🥇🥈🥉]/m.test(response);
+    const hasEmojiIcons = /[🎯⏱📋🧠💡⚠📝🎓🏆🥇🥈🥉]/mu.test(response);
     if (hasEmojiIcons) score += 0.15;
 
     const hasTable = /\|.+\|.+\|/m.test(response);

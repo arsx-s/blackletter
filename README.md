@@ -1,91 +1,103 @@
 # BlackLetter
 
-A local-first AI research operating system. Run deep research sessions, keep them organized in workspaces, attach documents, and visualize everything on a research canvas and knowledge graph — with a single AI path behind a server-side key.
+BlackLetter is a research workspace that brings AI-assisted research, document analysis, learning tools, visual exploration, and persistent research sessions together in one interface.
 
-Live demo: **https://blackletter-three.vercel.app/**
+## Overview
 
-## What BlackLetter does
+BlackLetter is built around the idea that research should accumulate. A session starts with a question and becomes a structured report: sections, entities, timeline events, follow-up questions, and an intelligence summary with grounding and confidence signals. Sessions, documents, and notes live in workspaces and folders, are saved locally, and are always available to reopen.
 
-- **Research sessions** — type a question, pick a subject and research mode, and the multi-stage pipeline produces a structured report with sections, entities, timeline events, follow-up questions, and an intelligence summary (grounding, confidence, trace).
-- **Workspaces, folders, documents** — organize sessions into workspaces and folders; upload `.txt`, `.md`, `.pdf`, `.docx` files (up to 10 MB) and have them analyzed as the topic of a session.
-- **Knowledge graph** — every run derives nodes and edges; the graph powers gap detection ("you may want to learn X first") and context for later sessions.
-- **Research canvas** — a free-form board of blocks (reports, notes, document extracts, generated artifacts) with version snapshots.
-- **Split view** — run two sessions side by side.
-- **Notebook (Ledger), document viewer, global search (Ctrl+K)** — local-first notes and documents with instant full-text search.
-- **Two interface modes** — *Intelligence* (clean, product-focused) and *Developer* (pipeline diagnostics, run traces, telemetry). Toggle from the status bar or Settings.
+Documents uploaded to a session are analyzed as part of the research, and every run feeds a knowledge graph that grows with your library. A research canvas lets you arrange reports, notes, and artifacts spatially, and a split view supports working on two sessions side by side.
 
-## Stack
+## Features
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | React 18 + TypeScript + Vite |
-| Desktop | Electron (packaged shell that runs its own local API server) |
-| AI | A single OpenRouter relay — `api/chat.ts` (Vercel serverless in production, `scripts/dev-server.mjs` locally/Electron). The browser never holds an API key. |
-| Storage | Local-first — all state persists to the device via localStorage |
+- AI-assisted research sessions with structured, streamed reports
+- Document analysis for `.txt`, `.md`, `.pdf`, and `.docx` files
+- Persistent sessions, chat history, tabs, workspaces, and folders
+- Knowledge graph that grows from research and documents
+- Research canvas for arranging research material visually
+- Split view for side-by-side sessions
+- Notebook, document library, and full-text search (Ctrl+K)
+- Model selection across multiple OpenRouter models
+- Two interface modes: Intelligence and Developer
+- Local-first storage — all state persists on your device
+- Desktop app via Electron, web app deployed on Vercel
+
+## Interface modes
+
+### Intelligence Mode
+
+Research, learning, document analysis, and general knowledge workflows. This is the default, product-focused surface.
+
+### Developer Mode
+
+Technical research, debugging, and code analysis workflows, with access to pipeline diagnostics and run telemetry.
+
+## Models
+
+BlackLetter uses OpenRouter as its model gateway, which lets the application work with a wide range of available models. Requests go through a small server-side relay (`api/chat.ts`); the API key is read only on the server and is never committed or sent from the browser.
+
+## Built With
+
+- React, TypeScript, Vite
+- Electron (desktop)
+- Node.js (local API relay)
+- OpenRouter (model gateway)
+- Vercel (deployment)
+
+## Architecture
+
+The app is a single-page application built around five integrated engines: the learning engine, the research workspace, the knowledge and intelligence engine, the research canvas, and offline intelligence. The UI reads and writes a single workspace store, persisted locally. Research requests flow through a pipeline (intent, subject, document context, prompt, generation, quality check, formatting) and stream responses back into the session. The browser never talks to a model provider directly — all AI traffic passes through the server-side relay.
 
 ## Getting started
 
-Requirements: Node 20+, an OpenRouter API key.
+Requirements: Node 20+ and an OpenRouter API key.
 
 ```bash
+git clone https://github.com/arsx-s/blackletter.git
+cd blackletter
 npm install
-$env:OPENROUTER_API_KEY = "sk-or-..."   # local shell only — never committed
-npm run dev                             # Vite on :5173 + Node API on :3000 (proxy /api)
 ```
 
-Browser dev flow: Vite proxies `/api/*` → `http://localhost:3000` → OpenRouter. The key is read from `process.env.OPENROUTER_API_KEY` by `scripts/dev-server.mjs` only; the client sends no credentials.
+Set the API key in your local shell only — it must never be committed:
 
-## Configuration
-
-| Variable | Where read | Purpose |
-| --- | --- | --- |
-| `OPENROUTER_API_KEY` | `api/chat.ts`, `scripts/dev-server.mjs` (server-side only) | OpenRouter key; set in Vercel project settings for production, in the local shell for dev |
-
-See `AUTH-AUDIT.md` for the full request path and key-handling trace.
-
-## Building and testing
+```powershell
+$env:OPENROUTER_API_KEY="your_key_here"
+```
 
 ```bash
-npm run build        # tsc -b && vite build → dist/
-npm test             # vitest (src/test)
-npm run lint         # eslint
-npm run electron:build   # build + package the Windows desktop app
+export OPENROUTER_API_KEY="your_key_here"
 ```
 
-## Running locally
+Then start the development environment:
 
 ```bash
-npm run dev            # Vite (5173) + Node API (3000) + Electron
-npm run preview        # serve the built dist/ with vite preview
+npm run dev
 ```
 
-## Deployment (Vercel)
+This runs the Vite dev server on port 5173 and the local API relay on port 3000, with `/api` proxied between them.
 
-The Vercel project is pure Node — there is no Python runtime anywhere in the repository.
-
-- The Vite app builds to `dist/` and is served as static assets.
-- `api/chat.ts` is deployed as the single serverless function (`vercel.json` pins `maxDuration`/`memory`).
-- Set `OPENROUTER_API_KEY` in Vercel project environment variables. The browser never sees it.
+## Build and test
 
 ```bash
-npx vercel --prod
+npm run build     # type-check and build the production bundle
+npm test          # run the test suite (vitest)
+npm run lint      # run the linter (eslint)
 ```
 
-GitHub Actions CI runs `npm install → tsc → test → build` on every push to `main`.
+## Deployment
 
-## AI request path
+BlackLetter is deployed on Vercel.
 
-```
-Browser/Electron  →  POST /api/chat  →  api/chat.ts (serverless) / dev-server.mjs (local)
-                    process.env.OPENROUTER_API_KEY   →   OpenRouter  →  SSE  →  renderer
-```
+Production: https://blackletter-rfg8o82fv-atlas-labsx.vercel.app/
 
-See `AUTH-AUDIT.md` for stage-by-stage verification and `DEPLOY-AUDIT.md` for the Vercel build/detection audit. `FINAL_RELEASE_AUDIT.md` documents the pre-release product audit and the fixes applied for 3.2.0.
+## Status
 
-## Documentation
+BlackLetter is an active personal software project, available as a deployed web application and as a Windows desktop build.
 
-- `docs/product-architecture.md` — how BlackLetter is organized
-- `docs/Design-System.md` — design tokens and interaction rules
-- `docs/Roadmap.md` — release plan
-- `CHANGELOG.md` — change history
-- `QA-AUDIT.md`, `QA-AUDIT-RC1.md`, `USER-ACCEPTANCE-REPORT.md` — prior audit and acceptance reports
+## Author
+
+Ali Arsalan Aryan — https://github.com/arsx-s
+
+## License
+
+BlackLetter is released under the MIT License.

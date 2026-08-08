@@ -46,7 +46,7 @@ export class ResearchProjectManager {
           }
         }
       }
-    } catch {}
+    } catch { /* storage unavailable */ }
   }
 
   private saveToStorage(id: string): void {
@@ -55,7 +55,7 @@ export class ResearchProjectManager {
       if (data) {
         localStorage.setItem(this.storageKey(id), JSON.stringify(data));
       }
-    } catch {}
+    } catch { /* storage unavailable */ }
   }
 
   createProject(
