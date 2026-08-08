@@ -1,0 +1,75 @@
+{
+  "name": "blackletter-os",
+  "private": true,
+  "version": "3.2.0",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -n \"vite,api\" -c \"cyan,green\" \"vite\" \"node scripts/dev-server.mjs\"",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "electron:dev": "node scripts/generate-icon.cjs && concurrently -n \"vite,api,electron\" -c \"cyan,green,magenta\" \"vite\" \"node scripts/dev-server.mjs\" \"wait-on http://localhost:5173 http://localhost:3000 && electron .\"",
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "electron:build": "npm run build && node scripts/generate-icon.cjs && electron-builder --win --config.win.icon=public/icon.png --config.directories.output=release"
+  },
+  "build": {
+    "appId": "com.blackletter.os",
+    "productName": "BlackLetter",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "scripts/**/*.mjs"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "public/icon.png",
+      "artifactName": "BlackLetter.exe"
+    },
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public"
+      }
+    ]
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.468.0",
+    "ogl": "^1.0.11",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "reactflow": "^11.11.4",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/ui": "^4.1.10",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.4.49",
+    "sharp": "^0.35.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.3",
+    "vite": "^7.0.0",
+    "vitest": "^4.1.10",
+    "wait-on": "^8.0.3"
+  }
+}

@@ -1,0 +1,206 @@
+import type { ElevationLevel, StudioColorRole } from "./types";
+
+export const colors: Record<StudioColorRole, Record<string, string>> = {
+  brand: {
+    50: "#EFF6FF",
+    100: "#DBEAFE",
+    200: "#BFDBFE",
+    300: "#93C5FD",
+    400: "#60A5FA",
+    500: "#3B82F6",
+    600: "#2563EB",
+    700: "#1D4ED8",
+    800: "#1E40AF",
+    900: "#1E3A8A",
+    950: "#172554",
+  },
+  accent: {
+    50: "#F5F3FF",
+    100: "#EDE9FE",
+    200: "#DDD6FE",
+    300: "#C4B5FD",
+    400: "#A78BFA",
+    500: "#8B5CF6",
+    600: "#7C3AED",
+    700: "#6D28D9",
+    800: "#5B21B6",
+    900: "#4C1D95",
+    950: "#2E1065",
+  },
+  surface: {
+    base: "#FFFFFF",
+    elevated: "#F8FAFC",
+    card: "#FFFFFF",
+    modal: "#FFFFFF",
+    sidebar: "#F1F5F9",
+    panel: "#FFFFFF",
+    input: "#F8FAFC",
+    "panel-header": "#F8FAFC",
+  },
+  text: {
+    primary: "#0F172A",
+    secondary: "#475569",
+    tertiary: "#94A3B8",
+    inverted: "#FFFFFF",
+    link: "#3B82F6",
+    "link-hover": "#2563EB",
+    disabled: "#CBD5E1",
+    placeholder: "#94A3B8",
+  },
+  border: {
+    light: "#E2E8F0",
+    medium: "#CBD5E1",
+    focus: "#3B82F6",
+    divider: "#F1F5F9",
+  },
+  learning: {
+    50: "#F0FDF4",
+    100: "#DCFCE7",
+    200: "#BBF7D0",
+    300: "#86EFAC",
+    400: "#4ADE80",
+    500: "#22C55E",
+    subtle: "#DCFCE7",
+    text: "#166534",
+  },
+  research: {
+    50: "#EFF6FF",
+    100: "#DBEAFE",
+    200: "#BFDBFE",
+    300: "#93C5FD",
+    400: "#60A5FA",
+    500: "#3B82F6",
+    subtle: "#DBEAFE",
+    text: "#1E40AF",
+  },
+  knowledge: {
+    50: "#F5F3FF",
+    100: "#EDE9FE",
+    200: "#DDD6FE",
+    300: "#C4B5FD",
+    400: "#A78BFA",
+    500: "#8B5CF6",
+    subtle: "#EDE9FE",
+    text: "#5B21B6",
+  },
+  success: {
+    50: "#F0FDF4",
+    100: "#DCFCE7",
+    500: "#22C55E",
+    700: "#15803D",
+  },
+  warning: {
+    50: "#FFFBEB",
+    100: "#FEF3C7",
+    500: "#F59E0B",
+    700: "#B45309",
+  },
+  error: {
+    50: "#FEF2F2",
+    100: "#FEE2E2",
+    500: "#EF4444",
+    700: "#B91C1C",
+  },
+  source: {
+    primary: "#0EA5E9",
+    secondary: "#0284C7",
+    subtle: "#E0F2FE",
+  },
+  connection: {
+    direct: "#3B82F6",
+    indirect: "#94A3B8",
+    strong: "#8B5CF6",
+    weak: "#CBD5E1",
+  },
+};
+
+export const spacing = {
+  xs: 2,
+  sm: 4,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  "2xl": 20,
+  "3xl": 24,
+  "4xl": 32,
+  "5xl": 40,
+  "6xl": 48,
+  "7xl": 56,
+  "8xl": 64,
+  "9xl": 80,
+  "10xl": 96,
+} as const;
+
+export const radii = {
+  none: "0",
+  sm: "4px",
+  md: "6px",
+  lg: "8px",
+  xl: "12px",
+  "2xl": "16px",
+  full: "9999px",
+} as const;
+
+export const shadows: Record<ElevationLevel, string> = {
+  0: "none",
+  1: "0 1px 2px rgba(0,0,0,0.05)",
+  2: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
+  3: "0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04)",
+  4: "0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04)",
+  5: "0 20px 25px rgba(0,0,0,0.10), 0 10px 10px rgba(0,0,0,0.04)",
+};
+
+export const typography = {
+  fontFamily: {
+    sans: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+    serif: "'Georgia', 'Times New Roman', serif",
+  },
+  fontSize: {
+    xs: "11px",
+    sm: "12px",
+    base: "14px",
+    lg: "15px",
+    xl: "16px",
+    "2xl": "18px",
+    "3xl": "20px",
+    "4xl": "24px",
+    "5xl": "30px",
+    "6xl": "36px",
+  },
+  fontWeight: {
+    normal: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700,
+  },
+  lineHeight: {
+    tight: 1.25,
+    normal: 1.5,
+    relaxed: 1.75,
+  },
+  letterSpacing: {
+    tight: "-0.01em",
+    normal: "0",
+    wide: "0.01em",
+  },
+} as const;
+
+export const breakpoints = {
+  sm: 640,
+  md: 768,
+  lg: 1024,
+  xl: 1280,
+  "2xl": 1536,
+} as const;
+
+export const zIndex = {
+  base: 0,
+  dropdown: 100,
+  sticky: 200,
+  overlay: 300,
+  modal: 400,
+  popover: 500,
+  toast: 600,
+  tooltip: 700,
+} as const;

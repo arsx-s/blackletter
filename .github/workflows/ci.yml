@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+        name: TypeScript check
+
+      - run: npm run lint
+        name: Lint
+        continue-on-error: true
+
+      - run: npm test
+        name: Run tests
+
+      - run: npm run build
+        name: Build
