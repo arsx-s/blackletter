@@ -11,19 +11,19 @@
 }
 
 @layer base {
-:root {
-    --background: 239 233 225;
-    --sidebar: 217 217 217;
-    --surface: 209 199 189;
-    --surface-elevated: 209 199 189;
-    --text-primary: 50 45 41;
-    --text-secondary: 50 45 41;
-    --text-muted: 50 45 41;
-    --accent: 114 56 61;
-    --accent-hover: 90 44 48;
-    --accent-soft: 114 56 61;
-    --border: 172 156 141;
-    --shadow-color: 50 45 41;
+  :root {
+    --background: 250 250 252;
+    --sidebar: 242 242 247;
+    --surface: 255 255 255;
+    --surface-elevated: 255 255 255;
+    --text-primary: 29 29 31;
+    --text-secondary: 72 72 74;
+    --text-muted: 110 110 115;
+    --accent: 0 113 227;
+    --accent-hover: 0 94 189;
+    --accent-soft: 0 113 227;
+    --border: 210 210 215;
+    --shadow-color: 29 29 31;
     --bl-font: 0.875rem;
     --bl-code: 0.75rem;
     --bl-lh: 1.6;
@@ -44,6 +44,24 @@
     --bl-code: 0.9375rem;
     --bl-lh: 1.75;
   }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 28 28 30;
+      --sidebar: 44 44 46;
+      --surface: 48 48 50;
+      --surface-elevated: 58 58 60;
+      --text-primary: 245 245 247;
+      --text-secondary: 210 210 215;
+      --text-muted: 152 152 157;
+      --accent: 10 132 255;
+      --accent-hover: 64 156 255;
+      --accent-soft: 10 132 255;
+      --border: 72 72 74;
+      --shadow-color: 0 0 0;
+    }
+  }
+
   .bl-prose {
     font-size: var(--bl-font);
     line-height: var(--bl-lh);
@@ -89,10 +107,10 @@
 }
 
 @layer components {
-  .surface-default { border: 1px solid rgb(var(--border)); background-color: rgb(var(--background)); }
-  .surface-elevated { border: 1px solid rgb(var(--border)); background-color: rgb(var(--surface-elevated)); box-shadow: 0 1px 3px rgb(var(--shadow-color) / 0.08), 0 1px 2px rgb(var(--shadow-color) / 0.04); }
-  .surface-glass { background-color: rgb(var(--surface) / 0.8); backdrop-filter: blur(20px); border: 1px solid rgb(var(--border)); }
-  .surface-glass-strong { background-color: rgb(var(--surface) / 0.9); backdrop-filter: blur(40px); border: 1px solid rgb(var(--border)); }
+  .surface-default { border: 1px solid rgb(var(--border) / 0.72); background-color: rgb(var(--background)); border-radius: 14px; }
+  .surface-elevated { border: 1px solid rgb(var(--border) / 0.55); background-color: rgb(var(--surface-elevated)); box-shadow: 0 8px 30px rgb(var(--shadow-color) / 0.08), 0 1px 3px rgb(var(--shadow-color) / 0.06); border-radius: 16px; }
+  .surface-glass { background-color: rgb(var(--surface) / 0.72); backdrop-filter: blur(24px) saturate(180%); border: 1px solid rgb(var(--border) / 0.55); border-radius: 14px; }
+  .surface-glass-strong { background-color: rgb(var(--surface) / 0.86); backdrop-filter: blur(30px) saturate(180%); border: 1px solid rgb(var(--border) / 0.55); border-radius: 16px; }
 
   .text-hero { @apply font-display text-display font-black leading-[0.85] tracking-tightest; }
   .text-display { @apply font-display text-7xl font-black tracking-tighter leading-[0.9]; }
@@ -121,8 +139,8 @@
   .card-hover { @apply transition-all duration-200 ease-out; }
   .card-hover:hover {
     @apply -translate-y-0.5;
-    border-color: rgb(var(--text-primary) / 0.2);
-    box-shadow: 0 4px 16px rgb(var(--shadow-color) / 0.08), 0 2px 4px rgb(var(--shadow-color) / 0.04);
+    border-color: rgb(var(--accent) / 0.35);
+    box-shadow: 0 12px 34px rgb(var(--shadow-color) / 0.12), 0 2px 6px rgb(var(--shadow-color) / 0.06);
   }
 
   .page-container { @apply mx-auto w-full max-w-7xl px-5; }

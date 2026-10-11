@@ -5,9 +5,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ["Georgia", "Times New Roman", "serif"],
-        sans: ["Inter", "system-ui", "sans-serif"],
-        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+        display: ["-apple-system", "BlinkMacSystemFont", "SF Pro Display", "Segoe UI", "sans-serif"],
+        sans: ["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Segoe UI", "sans-serif"],
+        mono: ["SFMono-Regular", "ui-monospace", "Menlo", "monospace"],
       },
       colors: {
         background: "rgb(var(--background) / <alpha-value>)",
