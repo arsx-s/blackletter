@@ -216,8 +216,10 @@ function decompressHuffman(t: HuffmanState, litTree: Huffman, distTree: Huffman)
 function inflateRaw(data: Uint8Array): Uint8Array {
   const output: number[] = [];
   let i = 0;
+  const maxOutputBytes = 25 * 1024 * 1024;
+  let blocks = 0;
 
-  while (i < data.length) {
+  while (i < data.length && blocks++ < 100_000) {
     const bfinal = data[i] & 1;
     const btype = (data[i] >> 1) & 3;
     i++;
@@ -232,16 +234,18 @@ function inflateRaw(data: Uint8Array): Uint8Array {
       const fixedDistTree = buildFixedDistTree();
       const result = decompressHuffman({ data, offset: i }, fixedLitTree, fixedDistTree);
       output.push(...result.data);
-      i = result.offset;
+      i = Math.ceil(result.offset / 8);
     } else if (btype === 2) {
       const t: HuffmanState = { data, offset: i };
       const { litTree, distTree, offset } = buildDynamicTrees(t);
       i = offset;
       const result = decompressHuffman({ data, offset: i }, litTree, distTree);
       output.push(...result.data);
-      i = result.offset;
+      if (output.length > maxOutputBytes) throw new Error("Document expands beyond the supported size");
+      i = Math.ceil(result.offset / 8);
     }
 
+    if (output.length > maxOutputBytes) throw new Error("Document expands beyond the supported size");
     if (bfinal) break;
   }
   return new Uint8Array(output);

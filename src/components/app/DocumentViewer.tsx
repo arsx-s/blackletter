@@ -10,6 +10,7 @@ import { useWorkspaceStore, workspaceStore } from "../../stores/use-workspace";
 import { extractTextFromFile } from "../../pipeline/documentEngine";
 
 const PAGE_SIZE = 40;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 function splitPages(text: string): string[] {
   const lines = text.split("\n");
@@ -47,9 +48,14 @@ export function DocumentViewer() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (file.size > MAX_FILE_BYTES) {
+      toast("Files must be smaller than 10 MB.", "error");
+      return;
+    }
     setUploading(true);
     try {
       const text = await extractTextFromFile(file);
+      if (!text.trim()) throw new Error("No readable text found");
       const id = workspaceStore.addDocument({
         workspaceId: state.activeWorkspaceId,
         folderId: null,
