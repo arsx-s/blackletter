@@ -30,10 +30,9 @@ function extractPDF(buffer: ArrayBuffer): string {
   return "";
 }
 
-function extractDOCX(buffer: ArrayBuffer): string {
+async function extractDOCX(buffer: ArrayBuffer): Promise<string> {
   try {
-    const bytes = new Uint8Array(buffer);
-    const files = parseZipEntries(buffer);
+    const files = await parseZipEntries(buffer);
     const xml = files["word/document.xml"];
     if (!xml) return "";
     return xml
@@ -46,7 +45,7 @@ function extractDOCX(buffer: ArrayBuffer): string {
   }
 }
 
-function parseZipEntries(buffer: ArrayBuffer): Record<string, string> {
+async function parseZipEntries(buffer: ArrayBuffer): Promise<Record<string, string>> {
   const bytes = new Uint8Array(buffer);
   const view = new DataView(buffer);
   const files: Record<string, string> = {};
@@ -81,7 +80,7 @@ function parseZipEntries(buffer: ArrayBuffer): Record<string, string> {
     let raw: Uint8Array<ArrayBufferLike> = bytes.slice(dataStart, dataStart + compSize);
     if (compMethod === 8) {
       try {
-        raw = inflateRaw(raw);
+        raw = await inflateRaw(raw);
       } catch {
         continue;
       }
@@ -94,161 +93,17 @@ function parseZipEntries(buffer: ArrayBuffer): Record<string, string> {
   return files;
 }
 
-/* Minimal raw-DEFLATE (deflate without zlib header) inflater. */
+/* Decompress DOCX ZIP entries off the JavaScript parsing path using the browser's native inflater. */
 
-type Huffman = Record<number, number>;
-interface HuffmanState { data: Uint8Array; offset: number }
-
-function addCode(tree: Huffman, code: number, bits: number): void {
-  tree[code] = bits;
-}
-
-function readBits(t: HuffmanState, n: number): number {
-  let result = 0;
-  for (let i = 0; i < n; i++) {
-    result |= ((t.data[t.offset >> 3] >> (t.offset & 7)) & 1) << i;
-    t.offset++;
+async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  if (typeof DecompressionStream === "undefined") {
+    throw new Error("This browser does not support document decompression");
   }
-  return result;
-}
-
-function buildFixedLitTree(): Huffman {
-  const tree: Huffman = {};
-  for (let i = 0; i <= 143; i++) addCode(tree, i, 8);
-  for (let i = 144; i <= 255; i++) addCode(tree, i, 9);
-  for (let i = 256; i <= 279; i++) addCode(tree, i, 7);
-  for (let i = 280; i <= 287; i++) addCode(tree, i, 8);
-  return tree;
-}
-
-function buildFixedDistTree(): Huffman {
-  const tree: Huffman = {};
-  for (let i = 0; i < 30; i++) addCode(tree, i, 5);
-  return tree;
-}
-
-const CODE_LENGTHS_ORDER = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
-const LENGTH_BASE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
-const LENGTH_EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
-const DIST_BASE = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
-const DIST_EXTRA = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
-
-function decodeSymbols(t: HuffmanState, lengths: number[]): Huffman {
-  const tree: Huffman = {};
-  let maxLen = 0;
-  for (const len of lengths) maxLen = Math.max(maxLen, len);
-  const count = new Array(maxLen + 1).fill(0);
-  for (const len of lengths) if (len > 0) count[len]++;
-  const nextCode = new Array(maxLen + 1).fill(0);
-  let code = 0;
-  for (let bits = 1; bits <= maxLen; bits++) {
-    code = (code + count[bits - 1]) << 1;
-    nextCode[bits] = code;
-  }
-  for (let i = 0; i < lengths.length; i++) {
-    const len = lengths[i];
-    if (len > 0) tree[nextCode[len]++] = i;
-  }
-  return tree;
-}
-
-function readHuffman(t: HuffmanState, tree: Huffman): number {
-  let code = 0;
-  for (let i = 0; i < 16; i++) {
-    const bit = (t.data[t.offset >> 3] & (1 << (t.offset & 7))) !== 0 ? 1 : 0;
-    t.offset++;
-    code = (code << 1) | bit;
-    if (tree[code] !== undefined) return tree[code];
-  }
-  throw new Error("Bad Huffman code");
-}
-
-function buildDynamicTrees(t: HuffmanState): { litTree: Huffman; distTree: Huffman; offset: number } {
-  const hl = readBits(t, 5) + 257;
-  const hd = readBits(t, 5) + 1;
-  const hc = readBits(t, 4) + 4;
-  const codeLengths = new Array(19).fill(0);
-  for (let i = 0; i < hc; i++) codeLengths[CODE_LENGTHS_ORDER[i]] = readBits(t, 3);
-  const codeTree = decodeSymbols(t, codeLengths);
-  const lengths: number[] = [];
-  while (lengths.length < hl + hd) {
-    const sym = readHuffman(t, codeTree);
-    if (sym < 16) {
-      lengths.push(sym);
-    } else if (sym === 16) {
-      const prev = lengths[lengths.length - 1] || 0;
-      const rep = 3 + readBits(t, 2);
-      for (let i = 0; i < rep; i++) lengths.push(prev);
-    } else if (sym === 17) {
-      const rep = 3 + readBits(t, 3);
-      for (let i = 0; i < rep; i++) lengths.push(0);
-    } else if (sym === 18) {
-      const rep = 11 + readBits(t, 7);
-      for (let i = 0; i < rep; i++) lengths.push(0);
-    }
-  }
-  const litLengths = lengths.slice(0, hl);
-  const distLengths = lengths.slice(hl);
-  return { litTree: decodeSymbols(t, litLengths), distTree: decodeSymbols(t, distLengths), offset: t.offset };
-}
-
-function decompressHuffman(t: HuffmanState, litTree: Huffman, distTree: Huffman): { data: number[]; offset: number } {
-  const output: number[] = [];
-  while (true) {
-    const sym = readHuffman(t, litTree);
-    if (sym <= 255) {
-      output.push(sym);
-    } else if (sym === 256) {
-      break;
-    } else {
-      const li = sym - 257;
-      const length = LENGTH_BASE[li] + readBits(t, LENGTH_EXTRA[li]);
-      const di = readHuffman(t, distTree);
-      const distance = DIST_BASE[di] + readBits(t, DIST_EXTRA[di]);
-      for (let i = 0; i < length; i++) {
-        output.push(output[output.length - distance]);
-      }
-    }
-  }
-  return { data: output, offset: t.offset };
-}
-
-function inflateRaw(data: Uint8Array): Uint8Array {
-  const output: number[] = [];
-  let i = 0;
-  const maxOutputBytes = 25 * 1024 * 1024;
-  let blocks = 0;
-
-  while (i < data.length && blocks++ < 100_000) {
-    const bfinal = data[i] & 1;
-    const btype = (data[i] >> 1) & 3;
-    i++;
-
-    if (btype === 0) {
-      if (i + 4 > data.length) break;
-      const len = data[i] | (data[i + 1] << 8);
-      for (let j = 0; j < len && i + 4 + j < data.length; j++) output.push(data[i + 4 + j]);
-      i += 4 + len;
-    } else if (btype === 1) {
-      const fixedLitTree = buildFixedLitTree();
-      const fixedDistTree = buildFixedDistTree();
-      const result = decompressHuffman({ data, offset: i }, fixedLitTree, fixedDistTree);
-      output.push(...result.data);
-      i = Math.ceil(result.offset / 8);
-    } else if (btype === 2) {
-      const t: HuffmanState = { data, offset: i };
-      const { litTree, distTree, offset } = buildDynamicTrees(t);
-      i = offset;
-      const result = decompressHuffman({ data, offset: i }, litTree, distTree);
-      output.push(...result.data);
-      if (output.length > maxOutputBytes) throw new Error("Document expands beyond the supported size");
-      i = Math.ceil(result.offset / 8);
-    }
-
-    if (output.length > maxOutputBytes) throw new Error("Document expands beyond the supported size");
-    if (bfinal) break;
-  }
-  return new Uint8Array(output);
+  const input = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+  const stream = new Blob([input]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  const output = new Uint8Array(await new Response(stream).arrayBuffer());
+  if (output.byteLength > 25 * 1024 * 1024) throw new Error("Document expands beyond the supported size");
+  return output;
 }
 
 function detectLanguage(text: string): string {
