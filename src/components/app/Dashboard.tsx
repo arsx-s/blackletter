@@ -21,19 +21,38 @@ export function Dashboard({ userName, onNewSession }: { userName: string; onNewS
 
   return (
     <div className="h-full overflow-y-auto scrollbar-hide">
-      <div className="max-w-4xl mx-auto px-8 py-10">
-        <p className="font-mono text-2xs uppercase tracking-ultra text-muted mb-3">Workspace · {workspaceName(state.activeWorkspaceId)}</p>
-        <h1 className="font-display text-4xl font-black tracking-tighter leading-[0.95] mb-1">
-          {greeting.text}, {userName || "Researcher"}.
-        </h1>
-        <p className="font-sans text-sm text-muted mb-8 max-w-lg">{subtitle}</p>
+      <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 sm:py-10">
+        <section className="relative overflow-hidden rounded-xl border border-border bg-surface/45 px-5 py-6 sm:px-8 sm:py-8 mb-7">
+          <div className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-accent/10 blur-3xl pointer-events-none" />
+          <div className="relative">
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <span className="font-mono text-2xs uppercase tracking-ultra text-muted">Workspace</span>
+              <span className="h-1 w-1 rounded-full bg-accent" />
+              <span className="font-sans text-xs text-bone/70 truncate max-w-52">{workspaceName(state.activeWorkspaceId)}</span>
+            </div>
+            <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tighter leading-[0.95] mb-3 text-balance">
+              {greeting.text}, {userName || "Researcher"}.
+            </h1>
+            <p className="font-sans text-sm text-muted max-w-xl leading-relaxed">{subtitle}</p>
+          </div>
+        </section>
 
+        <div className="grid grid-cols-3 gap-px rounded-lg overflow-hidden border border-border bg-border mb-8">
+          <Metric label="Research sessions" value={state.tabs.length} />
+          <Metric label="Saved documents" value={state.documents.length} />
+          <Metric label="Workspaces" value={state.workspaces.filter((w) => !w.archived).length} />
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-mono text-2xs uppercase tracking-ultra text-muted">Start something new</p>
+          <span className="font-sans text-2xs text-muted/60 hidden sm:block">Designed for focused thinking</span>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-10">
           {quickActions.map((action) => (
             <button
               key={action.label}
               onClick={action.onClick}
-              className="group flex items-center gap-3 border border-border bg-surface/40 hover:bg-surface rounded-md px-4 py-3 text-left transition-colors"
+              className="group flex items-center gap-3 border border-border bg-background/35 hover:bg-surface rounded-lg px-4 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
               <div className="w-8 h-8 rounded-md bg-bone/5 border border-border flex items-center justify-center group-hover:bg-accent group-hover:text-surface transition-colors">
                 <action.icon size={14} />
@@ -124,6 +143,15 @@ export function Dashboard({ userName, onNewSession }: { userName: string; onNewS
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="bg-background/70 px-3 py-3.5 sm:px-5">
+      <p className="font-display text-xl sm:text-2xl font-semibold tracking-tight text-bone">{value}</p>
+      <p className="font-mono text-[9px] sm:text-2xs uppercase tracking-wider text-muted mt-1 truncate">{label}</p>
     </div>
   );
 }
