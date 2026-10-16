@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, type ReactNode } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { ArrowRight, Github, Send, ChevronDown, FileText, Brain, BookOpen, Network, Layers, Layout, Shield, Zap, Check, MessageSquare, Lightbulb, Sparkles, BarChart3, Code2, Beaker, Calculator, Scale, Building2, DollarSign, HeartPulse, FlaskConical } from "lucide-react";
+import { ArrowRight, Github, Send, ChevronDown, FileText, Brain, BookOpen, Network, Layers, Layout, Shield, Zap, Check, MessageSquare, Lightbulb, Sparkles, BarChart3, Code2, Beaker, Calculator, Scale, Building2, DollarSign, HeartPulse, FlaskConical, Search } from "lucide-react";
 import { AiEcosystem } from "./AiEcosystem";
+import { MacbookReveal } from "./MacbookReveal";
+import { UseCaseTabs } from "./UseCaseTabs";
 import { Logo } from "../ui/logo";
 import { KnowledgeField } from "./KnowledgeField";
 import { WordReveal } from "./RevealText";
@@ -85,107 +87,6 @@ const LANDING_STYLES = `
     .bl-card, .bl-link::after { transition: none; }
   }
 `;
-
-/* ── Loading Screen ── */
-const LOADING_MESSAGES = [
-  "Opening Workspace",
-  "Restoring Research Sessions",
-  "Mounting Knowledge Graph",
-  "Loading Document Library",
-  "Preparing Canvas",
-  "Starting Local Storage",
-  "Syncing Preferences",
-];
-
-function LoadingScreen({ onFinish }: { onFinish: () => void }) {
-  const [messageIndex, setMessageIndex] = useState(0);
-  const [phase, setPhase] = useState<"entering" | "visible" | "exiting">("entering");
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setPhase("visible"), 200);
-    const msgInterval = setInterval(() => {
-      setMessageIndex((i) => (i + 1) % LOADING_MESSAGES.length);
-    }, 900);
-    const progressInterval = setInterval(() => {
-      setProgress((p) => Math.min(1, p + 0.045));
-    }, 130);
-    const t2 = setTimeout(() => {
-      setPhase("exiting");
-      clearInterval(msgInterval);
-      clearInterval(progressInterval);
-      setTimeout(onFinish, 600);
-    }, 3200);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearInterval(msgInterval);
-      clearInterval(progressInterval);
-    };
-  }, [onFinish]);
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center"
-      style={{ backgroundColor: "#322D29" }}
-      initial={{ opacity: 1 }}
-      animate={{ opacity: phase === "exiting" ? 0 : 1 }}
-      transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
-    >
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          className="absolute left-1/2 top-1/2 h-[32rem] w-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-          style={{ opacity: 0.16, background: "radial-gradient(circle, #F62440 0%, transparent 70%)" }}
-        />
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-        animate={{ opacity: phase === "entering" ? 0 : 1, scale: phase === "entering" ? 0.9 : 1, y: 0 }}
-        transition={{ duration: 0.7, ease: EASE_CINEMATIC }}
-        className="relative flex w-64 flex-col items-center gap-6"
-      >
-        <div className="relative">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border-2" style={{ borderColor: "rgba(255,250,243,0.2)" }}>
-            <Logo variant="white" size={30} />
-          </div>
-          <motion.div
-            className="absolute -right-1 -top-1 h-4 w-4 rounded-full"
-            style={{ backgroundColor: "#F62440" }}
-            animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </div>
-
-        <div className="flex w-full items-center gap-3">
-          <div className="h-px flex-1 overflow-hidden" style={{ backgroundColor: "rgba(255,250,243,0.16)" }}>
-            <motion.div
-              className="h-full origin-left"
-              style={{ backgroundColor: "#F62440" }}
-              animate={{ scaleX: progress }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
-            />
-          </div>
-          <span className="font-mono text-[10px] tabular-nums" style={{ color: "#AC9C8D" }}>
-            {String(messageIndex + 1).padStart(2, "0")}/{String(LOADING_MESSAGES.length).padStart(2, "0")}
-          </span>
-        </div>
-
-        <motion.p
-          key={messageIndex}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.3 }}
-          className="text-sm font-medium tracking-wide"
-          style={{ fontFamily: "'Inter', sans-serif", color: "rgba(255,250,243,0.6)" }}
-        >
-          {LOADING_MESSAGES[messageIndex]}
-        </motion.p>
-      </motion.div>
-    </motion.div>
-  );
-}
 
 /* ── Section Wrapper ── */
 function Section({ id, children, className = "", style: extraStyle }: { id?: string; children: ReactNode; className?: string; style?: React.CSSProperties }) {
@@ -676,6 +577,7 @@ function InteractiveDemo() {
 const NAV_SECTIONS: NavSection[] = [
   { id: "top", label: "Overview" },
   { id: "product", label: "Workspace" },
+  { id: "use-cases", label: "Use cases" },
   { id: "domains", label: "Domains" },
   { id: "capabilities", label: "Capabilities" },
   { id: "how-it-works", label: "Pipeline" },
@@ -702,21 +604,16 @@ function Intro({ children, className = "", center = false }: { children: ReactNo
 
 /* ── Main Landing Component ── */
 export function Landing({ onEnter }: { onEnter: () => void }) {
-  const [showLoading, setShowLoading] = useState(true);
-  const [showContent, setShowContent] = useState(false);
+  const [showContent] = useState(true);
   const { scrollYProgress } = useScroll();
   const heroOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
   const heroScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.95]);
 
-  const handleLoadingFinish = useCallback(() => {
-    setShowLoading(false);
-    setTimeout(() => setShowContent(true), 100);
-  }, []);
 
   return (
     <>
       <style>{LANDING_STYLES}</style>
-      {showLoading && <LoadingScreen onFinish={handleLoadingFinish} />}
+
 
       <AnimatePresence>
         {showContent && (
@@ -803,10 +700,13 @@ export function Landing({ onEnter }: { onEnter: () => void }) {
                     style={{ fontFamily: "'Instrument Serif', serif", color: "#322D29" }}
                   >
                     <span className="block">
-                      <WordReveal text="Research. Learn." delay={0.35} step={0.09} />
+                      <WordReveal text="Research deeply." delay={0.35} step={0.07} />
                     </span>
                     <span className="block" style={{ color: "#72383D" }}>
-                      <WordReveal text="Build knowledge." delay={0.5} step={0.09} />
+                      <WordReveal text="Learn with context." delay={0.48} step={0.07} />
+                    </span>
+                    <span className="block" style={{ color: "#72383D" }}>
+                      <WordReveal text="Build knowledge that lasts." delay={0.62} step={0.045} />
                     </span>
                   </h1>
 
@@ -817,8 +717,34 @@ export function Landing({ onEnter }: { onEnter: () => void }) {
                     className="mt-6 max-w-xl text-base leading-relaxed lg:mt-8 lg:text-lg"
                     style={{ fontFamily: "'Inter', sans-serif", color: "#72383D" }}
                   >
-                    BlackLetter is an AI research operating system. Sessions, documents, knowledge graph, and canvas live in one workspace — so the work you do today becomes the system you use tomorrow.
+                    BlackLetter brings research sessions, documents, structured explanations, and a growing knowledge graph into one workspace—so each piece of work can build on what came before.
                   </motion.p>
+
+                  <motion.div
+                    initial="hidden"
+                    animate="visible"
+                    variants={{ visible: { transition: { staggerChildren: 0.07, delayChildren: 0.65 } } }}
+                    className="mt-6 flex max-w-3xl flex-wrap gap-2"
+                    aria-label="BlackLetter capabilities"
+                  >
+                    {[
+                      { label: "Research", icon: Search },
+                      { label: "Learning", icon: Brain },
+                      { label: "Documents", icon: FileText },
+                      { label: "Knowledge Graph", icon: Network },
+                      { label: "Subject Intelligence", icon: Lightbulb },
+                      { label: "Learning Memory", icon: BookOpen },
+                    ].map(({ label, icon: Icon }) => (
+                      <motion.span
+                        key={label}
+                        variants={{ hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } }}
+                        className="inline-flex items-center gap-2 rounded-sm border px-3 py-2 text-xs font-medium"
+                        style={{ borderColor: "#D1C7BD", color: "#5E554E", backgroundColor: "rgba(255,250,243,0.84)" }}
+                      >
+                        <Icon size={14} aria-hidden="true" style={{ color: "#7D4145" }} />{label}
+                      </motion.span>
+                    ))}
+                  </motion.div>
 
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -869,47 +795,9 @@ export function Landing({ onEnter }: { onEnter: () => void }) {
               </motion.div>
             </motion.section>
 
-            {/* ── PRODUCT PREVIEW ── */}
-            <Section id="product" className="py-16 lg:py-24">
-              <Intro center className="mx-auto max-w-3xl">
-                <SectionLabel>Inside BlackLetter</SectionLabel>
-                <SectionTitle lines={["One workspace.", "A deeper understanding."]} className="text-center" />
-                <SectionSubtitle>Research sessions, structured reports, saved notes, and connected concepts share the same workspace.</SectionSubtitle>
-              </Intro>
-              <div className="mt-10 overflow-hidden rounded-md border shadow-premium" style={{ backgroundColor: "#211F1D", borderColor: "#D1C7BD" }}>
-                <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6" style={{ borderColor: "rgba(255,250,243,0.12)", color: "#FFFAF3" }}>
-                  <div className="flex items-center gap-3"><Logo variant="white" size={18} /><span className="text-sm font-medium">Research workspace</span></div>
-                  <span className="font-mono text-xs" style={{ color: "#C2B5A8" }}>SAMPLE VIEW</span>
-                </div>
-                <div className="grid gap-px md:grid-cols-[0.8fr_1.5fr_0.8fr]" style={{ backgroundColor: "rgba(255,250,243,0.12)" }}>
-                  <div className="p-5 sm:p-6" style={{ backgroundColor: "#282522", color: "#FFFAF3" }}>
-                    <p className="mb-4 text-xs uppercase tracking-widest" style={{ color: "#C2B5A8" }}>Research sessions</p>
-                    <p className="rounded-sm px-3 py-2 text-sm" style={{ backgroundColor: "rgba(255,250,243,0.08)" }}>Linear algebra foundations</p>
-                    <p className="mt-2 px-3 py-2 text-sm" style={{ color: "#C2B5A8" }}>Matrix transformations</p>
-                    <p className="mt-2 px-3 py-2 text-sm" style={{ color: "#C2B5A8" }}>Eigenvectors and meaning</p>
-                  </div>
-                  <div className="p-5 sm:p-7" style={{ backgroundColor: "#FFFAF3", color: "#322D29" }}>
-                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#72383D" }}>Structured report · Mathematics</p>
-                    <h3 className="mt-3 font-display text-2xl sm:text-3xl">What does a matrix transformation do?</h3>
-                    <p className="mt-3 text-sm leading-6" style={{ color: "#675B53" }}>A matrix transformation maps vectors from one space to another. Each column describes where a basis direction moves, making rotation, scaling, and projection easier to reason about.</p>
-                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-sm border p-3" style={{ borderColor: "#D1C7BD", backgroundColor: "#FFF2DB" }}><p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#72383D" }}>Key idea</p><p className="mt-1 text-sm">Columns encode the transformed basis.</p></div>
-                      <div className="rounded-sm border p-3" style={{ borderColor: "#D1C7BD", backgroundColor: "#FFF2DB" }}><p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#72383D" }}>Saved note</p><p className="mt-1 text-sm">Connect the map to its geometric effect.</p></div>
-                    </div>
-                  </div>
-                  <div className="p-5 sm:p-6" style={{ backgroundColor: "#282522", color: "#FFFAF3" }}>
-                    <p className="mb-4 text-xs uppercase tracking-widest" style={{ color: "#C2B5A8" }}>Related concepts</p>
-                    <div className="space-y-3 text-sm">
-                      <div className="rounded-sm border px-3 py-2" style={{ borderColor: "rgba(255,250,243,0.18)" }}>Vector space</div>
-                      <div className="ml-5 h-4 border-l" style={{ borderColor: "#F62440" }} />
-                      <div className="rounded-sm border px-3 py-2" style={{ borderColor: "rgba(255,250,243,0.18)" }}>Linear map</div>
-                      <div className="ml-5 h-4 border-l" style={{ borderColor: "#F62440" }} />
-                      <div className="rounded-sm border px-3 py-2" style={{ borderColor: "rgba(255,250,243,0.18)" }}>Matrix</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Section>
+            <MacbookReveal />
+
+            <UseCaseTabs />
 
             {/* ── DOMAINS ── */}
             <Section id="domains" className="py-20 lg:py-28" style={{ backgroundColor: "#FFF2DB" }}>
