@@ -125,17 +125,10 @@ function dedupe(list: string[]): string[] {
   return [...new Set(list.map((s) => s.trim()).filter(Boolean))];
 }
 
-export function formatMemoryContext(memory: WorkspaceMemory): string {
-  const parts: string[] = [];
-  if (memory.entries.length) {
-    const recent = memory.entries.slice(-6);
-    parts.push("PAST RESEARCH IN THIS WORKSPACE (use as background; stay consistent with earlier findings unless the user asks to revisit):");
-    for (const e of recent) {
-      parts.push(`- Q: ${e.q}\n  A: ${e.a}`);
-    }
-  }
-  if (memory.goals.length) parts.push(`RESEARCH GOALS: ${memory.goals.join("; ")}`);
-  if (memory.concepts.length) parts.push(`CONCEPTS ALREADY EXPLORED: ${memory.concepts.join(", ")}`);
-  if (memory.gaps.length) parts.push(`KNOWN KNOWLEDGE GAPS: ${memory.gaps.join("; ")}`);
-  return parts.join("\n\n");
-}
+/*
+ * Prompt formatting for workspace memory lives in `src/memory/retrieval.ts`.
+ * That module renders *memory records* with their provenance and epistemic
+ * status; this module only maintains the per-workspace summary that follow-up
+ * detection reads. Two formatters would let the prompt and the panel disagree
+ * about what the system remembers.
+ */

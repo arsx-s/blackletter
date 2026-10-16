@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
+const { safeExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
 
 const isDev = !app.isPackaged;
 const API_BASE = "http://127.0.0.1:3000";
@@ -42,6 +43,15 @@ function createWindow() {
     win.show();
   });
 
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const safeUrl = safeExternalUrl(url);
+    if (safeUrl) void shell.openExternal(safeUrl);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!isTrustedRendererUrl(url, { isDev, appRoot: path.join(__dirname, "..") })) event.preventDefault();
+  });
+
   if (isDev) {
     win.loadURL("http://localhost:5173");
     win.webContents.openDevTools();
@@ -51,8 +61,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  ipcMain.handle("open-external", async (_event, url) => {
-    await shell.openExternal(url);
+  ipcMain.handle("open-external", async (event, url) => {
+    if (event.senderFrame !== event.sender.mainFrame) return false;
+    if (!isTrustedRendererUrl(event.senderFrame.url, { isDev, appRoot: path.join(__dirname, "..") })) return false;
+    const safeUrl = safeExternalUrl(url);
+    if (!safeUrl) return false;
+    await shell.openExternal(safeUrl);
+    return true;
   });
   if (!isDev) {
     apiServer = startApiServer();

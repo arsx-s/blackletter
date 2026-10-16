@@ -103,7 +103,7 @@ export function BlockSurface({
         ) : (
           <span className="flex-1 min-w-0 truncate font-sans text-2xs text-bone/70">{block.title}</span>
         )}
-        <span className="font-mono text-[9px] uppercase tracking-wider text-muted/50 shrink-0">{BLOCK_TYPE_LABEL[block.type]}</span>
+        <span className="font-mono text-[9px] uppercase tracking-wider text-faint shrink-0">{BLOCK_TYPE_LABEL[block.type]}</span>
         {block.pinned && <Pin size={9} className="text-accent shrink-0" />}
       </div>
 
@@ -115,7 +115,7 @@ export function BlockSurface({
         onPointerDown={onResizeStart}
         className="absolute bottom-0 right-0 w-3.5 h-3.5 cursor-nwse-resize opacity-0 hover:opacity-100 transition-opacity"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" className="text-muted/60">
+        <svg width="10" height="10" viewBox="0 0 10 10" className="text-faint">
           <path d="M9 1 L9 9 L1 9" fill="none" stroke="currentColor" strokeWidth="1" />
         </svg>
       </div>
@@ -139,7 +139,7 @@ function EmptySession({ tabId }: { tabId?: string }) {
   };
   return (
     <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-      <MessageSquare size={18} className="text-muted/40" />
+      <MessageSquare size={18} className="text-faint" />
       <p className="font-sans text-2xs text-muted leading-relaxed">This block is not linked to a session.</p>
       <button onClick={create} className="px-3 py-1.5 rounded-sm bg-accent text-surface font-sans text-2xs font-medium">
         Create session
@@ -173,7 +173,7 @@ export function ChatBlockContent({ block }: { block: CanvasBlock }) {
           />
         )}
         {tab.messages.length === 0 && (
-          <p className="font-sans text-2xs text-muted/60 text-center mt-6">Ask anything — this session keeps its own memory.</p>
+          <p className="font-sans text-2xs text-faint text-center mt-6">Ask anything — this session keeps its own memory.</p>
         )}
         {tab.messages.map((m, i) => (
           <div key={i} className={cn("max-w-[92%]", m.role === "user" ? "ml-auto" : "mr-auto")}>
@@ -211,7 +211,7 @@ export function ChatBlockContent({ block }: { block: CanvasBlock }) {
           }}
           placeholder="Ask this session…"
           rows={2}
-          className="flex-1 min-w-0 bg-bone/[0.03] border border-border px-2.5 py-1.5 font-sans text-2xs outline-none focus:border-accent/40 transition-colors resize-none placeholder:text-muted/40"
+          className="flex-1 min-w-0 bg-bone/[0.03] border border-border px-2.5 py-1.5 font-sans text-2xs outline-none focus:border-accent/40 transition-colors resize-none placeholder:text-faint"
         />
         <button
           onClick={() => { if (input.trim() && !running) { void run(tab.id, input.trim()); setInput(""); } }}
@@ -232,7 +232,7 @@ export function ReportBlockContent({ block }: { block: CanvasBlock }) {
   if (!tab || !tab.fullText) {
     return (
       <div className="h-full flex items-center justify-center px-6 text-center">
-        <p className="font-sans text-2xs text-muted/60">No report yet. Run a session to generate one.</p>
+        <p className="font-sans text-2xs text-faint">No report yet. Run a session to generate one.</p>
       </div>
     );
   }
@@ -260,7 +260,7 @@ export function DocumentBlockContent({ block }: { block: CanvasBlock }) {
     const docs = state.documents.filter((d) => d.workspaceId === block.workspaceId);
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 px-4 text-center">
-        <File size={18} className="text-muted/40" />
+        <File size={18} className="text-faint" />
         <p className="font-sans text-2xs text-muted">No document linked.</p>
         {docs.length > 0 ? (
           <select
@@ -271,7 +271,7 @@ export function DocumentBlockContent({ block }: { block: CanvasBlock }) {
             {docs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         ) : (
-          <p className="font-sans text-2xs text-muted/50">Upload documents in a session first.</p>
+          <p className="font-sans text-2xs text-faint">Upload documents in a session first.</p>
         )}
       </div>
     );
@@ -298,7 +298,7 @@ export function DocumentBlockContent({ block }: { block: CanvasBlock }) {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/70">
         <div className="min-w-0 flex-1">
           <p className="font-sans text-2xs text-bone/80 truncate">{doc.name}</p>
-          <p className="font-mono text-[9px] text-muted/60">{doc.extension.toUpperCase()} · {(doc.size / 1024).toFixed(1)} KB · {doc.content.length.toLocaleString()} chars</p>
+          <p className="font-mono text-[9px] text-faint">{doc.extension.toUpperCase()} · {(doc.size / 1024).toFixed(1)} KB · {doc.content.length.toLocaleString()} chars</p>
         </div>
         <button
           onClick={() => void summarize()}
@@ -358,7 +358,7 @@ export function NoteBlockContent({ block }: { block: CanvasBlock }) {
         placeholder="Write a note…"
       />
       <div className="flex items-center justify-between px-3 pb-2">
-        <span className="font-mono text-[9px] text-muted/50">Inline note</span>
+        <span className="font-mono text-[9px] text-faint">Inline note</span>
         <button onClick={save} className="flex items-center gap-1 px-2 py-1 rounded-sm border border-border hover:border-accent/40 font-sans text-2xs text-bone/70">
           <BookMarked size={10} /> Save as note
         </button>
@@ -459,7 +459,7 @@ export function DiagramBlockContent({ block }: { block: CanvasBlock }) {
       <div className="flex-1 min-h-0 overflow-auto scrollbar-hide bg-bone/[0.015]">
         {nodes.length === 0 ? (
           <div className="h-full flex items-center justify-center px-6 text-center">
-            <p className="font-sans text-2xs text-muted/50 leading-relaxed">Write a flow below.<br />Example: <span className="font-mono text-muted/70">{`Research -> Draft -> Review`}</span></p>
+            <p className="font-sans text-2xs text-faint leading-relaxed">Write a flow below.<br />Example: <span className="font-mono text-muted/70">{`Research -> Draft -> Review`}</span></p>
           </div>
         ) : (
           <svg width={W} height={H} className="block">
@@ -495,7 +495,7 @@ export function DiagramBlockContent({ block }: { block: CanvasBlock }) {
         }}
         rows={3}
         placeholder={"A -> B -> C\nB --depends on--> D"}
-        className="shrink-0 bg-bone/[0.03] border-t border-border px-3 py-2 font-mono text-[10px] text-bone/60 outline-none resize-none"
+        className="shrink-0 bg-bone/[0.03] border-t border-border px-3 py-2 font-mono text-[10px] text-faint outline-none resize-none"
       />
     </div>
   );
@@ -514,7 +514,7 @@ export function TimelineBlockContent({ block }: { block: CanvasBlock }) {
   if (events.length === 0) {
     return (
       <div className="h-full flex items-center justify-center px-6 text-center">
-        <p className="font-sans text-2xs text-muted/60">No timeline events yet. Link this block to a session with research.</p>
+        <p className="font-sans text-2xs text-faint">No timeline events yet. Link this block to a session with research.</p>
       </div>
     );
   }
@@ -531,7 +531,7 @@ export function CodeBlockContent({ block }: { block: CanvasBlock }) {
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/70 bg-bone/[0.02]">
         <Code size={10} className="text-muted" />
-        <span className="font-mono text-[9px] uppercase tracking-wider text-muted/60">{block.data.language ?? "text"}</span>
+        <span className="font-mono text-[9px] uppercase tracking-wider text-faint">{block.data.language ?? "text"}</span>
       </div>
       <textarea
         value={code}
@@ -593,7 +593,7 @@ export function SummaryBlockContent({ block }: { block: CanvasBlock }) {
         ) : summary ? (
           <p className="font-sans text-2xs leading-relaxed text-bone/70 whitespace-pre-wrap">{summary}</p>
         ) : (
-          <p className="font-sans text-2xs text-muted/60">Run a session first, then this block summarizes it automatically.</p>
+          <p className="font-sans text-2xs text-faint">Run a session first, then this block summarizes it automatically.</p>
         )}
       </div>
       <div className="flex items-center gap-1.5 p-2 border-t border-border/70">
@@ -602,7 +602,7 @@ export function SummaryBlockContent({ block }: { block: CanvasBlock }) {
           onChange={(e) => setAsk(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && ask.trim()) { void run(ask.trim()); setAsk(""); } }}
           placeholder="Ask a different angle…"
-          className="flex-1 min-w-0 bg-bone/[0.03] border border-border px-2.5 py-1 font-sans text-2xs outline-none focus:border-accent/40 placeholder:text-muted/40"
+          className="flex-1 min-w-0 bg-bone/[0.03] border border-border px-2.5 py-1 font-sans text-2xs outline-none focus:border-accent/40 placeholder:text-faint"
         />
         <button onClick={() => { if (ask.trim()) { void run(ask.trim()); setAsk(""); } }} disabled={busy} className="p-1.5 rounded-sm bg-accent text-surface disabled:opacity-40 shrink-0">
           <Sparkles size={10} />
@@ -687,12 +687,12 @@ export function MindMapBlockContent({ block }: { block: CanvasBlock }) {
             {pairs.map((p, i) => (
               <div key={i} className="pl-2 border-l border-border/50">
                 <span className="font-sans text-2xs text-bone/70">{p.from}</span>
-                <span className="ml-1 font-mono text-[9px] text-muted/50">→</span>
+                <span className="ml-1 font-mono text-[9px] text-faint">→</span>
                 <span className="ml-1 font-sans text-2xs text-bone/70">{p.to}</span>
               </div>
             ))}
           </div>
-          <button onClick={() => setEditing(true)} className="font-mono text-[9px] uppercase tracking-wider text-muted/60 hover:text-bone/70">
+          <button onClick={() => setEditing(true)} className="font-mono text-[9px] uppercase tracking-wider text-faint hover:text-bone/70">
             Edit map
           </button>
         </div>
@@ -761,7 +761,7 @@ export function TableBlockContent({ block }: { block: CanvasBlock }) {
           ))}
         </tbody>
       </table>
-      <button onClick={() => setEditing(true)} className="mt-2 font-mono text-[10px] uppercase tracking-wider text-muted/60 hover:text-bone/70">
+      <button onClick={() => setEditing(true)} className="mt-2 font-mono text-[10px] uppercase tracking-wider text-faint hover:text-bone/70">
         Edit table
       </button>
     </div>
@@ -792,7 +792,7 @@ export function ImageBlockContent({ block }: { block: CanvasBlock }) {
             reader.readAsDataURL(file);
           }}
         />
-        <Image size={20} className="text-muted/40" />
+        <Image size={20} className="text-faint" />
         <button onClick={() => fileRef.current?.click()} className="px-3 py-1.5 rounded-sm bg-accent text-surface font-sans text-2xs font-medium">
           Upload image
         </button>
@@ -834,7 +834,7 @@ export function PdfBlockContent({ block }: { block: CanvasBlock }) {
   if (!doc) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-2 px-4 text-center">
-        <File size={16} className="text-muted/40" />
+        <File size={16} className="text-faint" />
         <p className="font-sans text-2xs text-muted">No PDF linked.</p>
         {docs.length > 0 ? (
           <select
@@ -845,7 +845,7 @@ export function PdfBlockContent({ block }: { block: CanvasBlock }) {
             {docs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         ) : (
-          <p className="font-sans text-[10px] text-muted/50">Upload documents in the Documents view to link them here.</p>
+          <p className="font-sans text-[10px] text-faint">Upload documents in the Documents view to link them here.</p>
         )}
       </div>
     );

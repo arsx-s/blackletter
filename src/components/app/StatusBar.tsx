@@ -1,13 +1,18 @@
-import { CheckCircle2, Cloud, CloudOff, Loader2, MessageSquare } from "lucide-react";
+import { CheckCircle2, Cloud, CloudOff, Cpu, Globe, Loader2, MessageSquare } from "lucide-react";
 import { workspaceStore } from "../../stores/workspace-store";
 import { useWorkspaceStore } from "../../stores/use-workspace";
 import { cn } from "../../lib/utils";
 import { categoryForModel, MODEL_CATEGORIES } from "../../config/models";
+import { activeProvider } from "../../providers/provider";
+import { StopControl } from "./StopControl";
 
 export function StatusBar() {
   const state = useWorkspaceStore();
   const tab = state.tabs.find((t) => t.id === state.activeTabId) ?? null;
   const workspace = state.workspaces.find((w) => w.id === state.activeWorkspaceId) ?? null;
+  // Read from the provider layer rather than from preferences: this is what the
+  // next request will actually use, including when a local choice is unusable.
+  const run = activeProvider();
 
   const SaveIcon = state.saveState === "saved" ? CheckCircle2 : state.saveState === "saving" ? Loader2 : CloudOff;
 
@@ -20,7 +25,19 @@ export function StatusBar() {
       <span className="hidden sm:flex items-center gap-1 text-muted/70">
         <Cloud size={10} /> Local
       </span>
+      <span
+        className={cn("flex items-center gap-1", run.problem ? "text-accent" : "text-muted/70")}
+        title={
+          run.provider === "ollama"
+            ? `Runs are answered on this machine by the local runtime${run.problem ? ` — ${run.problem}` : ""}. Change this in Workshop → AI & Models.`
+            : "Runs are answered through the relay to OpenRouter. Change this in Workshop → AI & Models."
+        }
+      >
+        {run.provider === "ollama" ? <Cpu size={10} /> : <Globe size={10} />}
+        {run.provider === "ollama" ? `Ollama${run.model ? ` · ${run.model}` : ""}` : "OpenRouter"}
+      </span>
       <div className="flex-1" />
+      <StopControl />
       <button
         onClick={() => workspaceStore.setPrefs({ floatingChatOpen: !state.prefs.floatingChatOpen })}
         className={cn(

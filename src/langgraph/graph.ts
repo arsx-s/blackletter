@@ -1,8 +1,9 @@
-import type { GraphState, GraphDefinition, GraphRunResult, GraphNode } from "./types";
+import type { GraphState, GraphDefinition, GraphRunResult, GraphNode, RunContext } from "./types";
 import type { TraceStageId } from "../pipeline/trace";
 import { stageNameFor } from "../pipeline/trace";
 import { reduceState } from "./state";
 import { getReadableError } from "../lib/error-utils";
+import { isCancelledError } from "../lib/cancellation";
 import { log, logError } from "./logger";
 import { UserInputNode } from "./nodes/UserInputNode";
 import { IntentNode } from "./nodes/IntentNode";
@@ -77,6 +78,7 @@ export function createStateMachine(def: GraphDefinition) {
 
   async function execute(
     initialState: GraphState,
+    ctx: RunContext = {},
   ): Promise<GraphRunResult> {
     let state = { ...initialState };
     const visitedNodes: string[] = [];
@@ -85,12 +87,31 @@ export function createStateMachine(def: GraphDefinition) {
     const maxIterations = 100;
     let iteration = 0;
 
+    const cancelled = (nodeName: string): GraphRunResult => ({
+      state,
+      visitedNodes,
+      executionTimes,
+      finalNode: nodeName,
+      success: false,
+      error: "Cancelled by the operator.",
+      errorCode: "CANCELLED",
+      cancelled: true,
+    });
+
     log("GRAPH", `Starting execution at node "${start}"`);
     log("GRAPH", `Input prompt: "${state.userPrompt.slice(0, 80)}..."`);
 
     while (iteration < maxIterations) {
       iteration++;
       const nodeName = currentNode;
+
+      // Checked before every node, so a cancellation stops the graph at the
+      // next boundary even if the node currently running could not observe it.
+      if (ctx.signal?.aborted) {
+        log("GRAPH", `Cancellation observed before "${nodeName}"`);
+        return cancelled(nodeName);
+      }
+
       const nodeFn = nodes[nodeName];
 
       if (!nodeFn) {
@@ -113,7 +134,7 @@ export function createStateMachine(def: GraphDefinition) {
       }
 
       try {
-        const result = await nodeFn(state);
+        const result = await nodeFn(state, ctx);
         const elapsed = Math.round(performance.now() - startTime);
         executionTimes[nodeName] = elapsed;
 
@@ -123,10 +144,15 @@ export function createStateMachine(def: GraphDefinition) {
         }
 
         if ("error" in result && typeof result.error === "string") {
+          const errorCode = (result as { errorCode?: string }).errorCode;
+          if (errorCode === "CANCELLED" || ctx.signal?.aborted) {
+            log("GRAPH", `"${nodeName}" stopped by cancellation`);
+            if (stageId) state.trace.fail(stageId, "Cancelled");
+            return cancelled(nodeName);
+          }
           logError("NODE", `"${nodeName}" returned error: ${result.error}`);
           state.errors.push(result.error);
           if (stageId) state.trace.fail(stageId, result.error);
-          const errorCode = (result as { errorCode?: string }).errorCode;
           return { state, visitedNodes, executionTimes, finalNode: nodeName, success: false, error: result.error, errorCode };
         }
 
@@ -165,6 +191,13 @@ export function createStateMachine(def: GraphDefinition) {
       } catch (e) {
         const elapsed = Math.round(performance.now() - startTime);
         executionTimes[nodeName] = elapsed;
+
+        if (isCancelledError(e)) {
+          log("GRAPH", `"${nodeName}" was cancelled`);
+          if (stageId) state.trace.fail(stageId, "Cancelled");
+          return cancelled(nodeName);
+        }
+
         const msg = getReadableError(e);
         const thrownCode = (e as { code?: string })?.code ?? (e as { errorCode?: string })?.errorCode;
         logError("NODE", `"${nodeName}" threw: ${msg}`, e);

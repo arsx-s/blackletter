@@ -1,9 +1,11 @@
+import { DEFAULT_MODEL } from "./model-defaults.mjs";
+
 const models = {
   research: "deepseek/deepseek-r1",
   learning: "anthropic/claude-sonnet-4",
   coding: "openai/gpt-4o-2024-11-20",
   fast: "google/gemini-2.5-flash",
-  default: "openai/gpt-4o-mini",
+  default: DEFAULT_MODEL,
 } as const;
 
 export type UseCase = keyof typeof models;
@@ -26,7 +28,7 @@ export interface ModelCategoryOption {
 
 export const MODEL_CATEGORIES: ModelCategoryOption[] = [
   { id: "fast", label: "Fast", description: "Snappy answers for everyday questions", model: "google/gemini-2.5-flash" },
-  { id: "balanced", label: "Balanced", description: "A sensible default for most research", model: "openai/gpt-4o-mini" },
+  { id: "balanced", label: "Balanced", description: "A sensible default for most research", model: DEFAULT_MODEL },
   { id: "reasoning", label: "Reasoning", description: "Deep step-by-step reasoning for hard problems", model: "deepseek/deepseek-r1" },
   { id: "creative", label: "Creative", description: "Expressive, thoughtful writing", model: "anthropic/claude-sonnet-4" },
   { id: "coding", label: "Coding", description: "Code, debugging, and technical work", model: "openai/gpt-4o-2024-11-20" },
@@ -53,7 +55,7 @@ export const MODEL_CATALOG: ModelOption[] = [
   { id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4", useCase: "learning" },
   { id: "openai/gpt-4o-2024-11-20", label: "GPT-4o", useCase: "coding" },
   { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", useCase: "fast" },
-  { id: "openai/gpt-4o-mini", label: "GPT-4o Mini", useCase: "default" },
+  { id: DEFAULT_MODEL, label: "GPT-4o Mini", useCase: "default" },
 ];
 
 export default models;

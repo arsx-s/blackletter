@@ -53,8 +53,8 @@ export class ErrorBoundary extends Component<Props, State> {
           </button>
           {this.state.error && (
             <details className="mt-4 max-w-md">
-              <summary className="font-mono text-2xs text-muted/50 cursor-pointer hover:text-muted/70">Error details</summary>
-              <pre className="mt-2 font-mono text-2xs text-muted/40 text-left whitespace-pre-wrap break-all">
+              <summary className="font-mono text-2xs text-faint cursor-pointer hover:text-muted/70">Error details</summary>
+              <pre className="mt-2 font-mono text-2xs text-faint text-left whitespace-pre-wrap break-all">
                 {this.state.error.message}
               </pre>
             </details>

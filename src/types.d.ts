@@ -63,7 +63,8 @@ declare module "reactflow" {
   export const MiniMap: ComponentType<{ className?: string; style?: CSSProperties }>;
   export function useNodesState<T = Record<string, unknown>>(nodes: Node<T>[]): [Node<T>[], (changes: unknown) => void, (nodes: Node<T>[]) => void];
   export function useEdgesState<T = Record<string, unknown>>(edges: Edge<T>[]): [Edge<T>[], (changes: unknown) => void, (edges: Edge<T>[]) => void];
-  export function useReactFlow(): { fitView: (opts?: { padding?: number }) => void; zoomTo: (level: number) => void; setCenter: (x: number, y: number, zoom?: number) => void; getNodes: () => Node<any>[]; getEdges: () => Edge<any>[]; };
+  export function useNodesInitialized(options?: { includeHiddenNodes?: boolean }): boolean;
+  export function useReactFlow(): { fitView: (opts?: { padding?: number; maxZoom?: number }) => void; zoomTo: (level: number) => void; setCenter: (x: number, y: number, zoom?: number) => void; getNodes: () => Node<any>[]; getEdges: () => Edge<any>[]; };
   export type ReactFlowProps = {
     nodes: Node<any>[];
     edges: Edge<any>[];

@@ -67,4 +67,5 @@ declare module "lucide-react" {
   export const Workflow: Icon;
   export const History: Icon;
   export const Presentation: Icon;
+  export const OctagonX: Icon;
 }

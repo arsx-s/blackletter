@@ -24,7 +24,9 @@ export default {
         "accent-hover": "rgb(var(--accent-hover) / <alpha-value>)",
         "accent-soft": "rgb(var(--accent-soft) / <alpha-value>)",
         muted: "rgb(var(--text-muted) / <alpha-value>)",
+        faint: "rgb(var(--text-faint) / <alpha-value>)",
         border: "rgb(var(--border) / <alpha-value>)",
+        "border-strong": "rgb(var(--border-strong) / <alpha-value>)",
       },
       spacing: {
         "4.5": "1.125rem",
@@ -96,6 +98,12 @@ export default {
           "50%": { transform: "translateY(4px) rotate(-1deg)" },
           "75%": { transform: "translateY(-4px) rotate(1deg)" },
         },
+        /* Indeterminate progress. Only ever used where the work is genuinely of
+           unknown duration — never to fake a percentage. */
+        "progress-sweep": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(400%)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.25s ease-out",
@@ -107,6 +115,7 @@ export default {
         "spin-slow": "spin-slow 18s linear infinite",
         "pulse-soft": "pulse-soft 4s ease-in-out infinite",
         float: "float 6s ease-in-out infinite",
+        "progress-sweep": "progress-sweep 1.6s ease-in-out infinite",
       },
     },
   },

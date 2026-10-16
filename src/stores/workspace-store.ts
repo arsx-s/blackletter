@@ -38,8 +38,38 @@ import type {
   TabEvent,
 } from "../types/workspace";
 import type { WorkspaceMemory, FollowupResolution } from "../lib/memory";
-import { emptyMemory, formatMemoryContext, rememberExchange, resolveFollowup } from "../lib/memory";
-import { loadObservability } from "../observability/metrics";
+import { emptyMemory, rememberExchange, resolveFollowup } from "../lib/memory";
+import {
+  addRecord,
+  applyRetention,
+  clearScope,
+  deleteRecord,
+  detectConflicts,
+  editRecord,
+  emptyMemoryState,
+  memoryContextText,
+  memoryView,
+  migrateMemoryState,
+  resolveDispute,
+  setRetention,
+  type MemoryAddResult,
+  type MemoryCategory,
+  type MemoryEdit,
+  type MemoryInput,
+  type MemoryRecord,
+  type MemoryView,
+  type RetentionPolicy,
+} from "../memory";
+import { loadObservability, getRuns } from "../observability/metrics";
+import type { DerivedChangeKnowledgeEffect } from "../integrity/types";
+import type { ToolData } from "../tools/types";
+import { loadToolAudit } from "../tools/audit";
+import {
+  DEFAULT_SELECTION,
+  normaliseSelection,
+  setProviderSelection,
+  type ProviderSelection,
+} from "../providers/selection";
 
 const STORE_VERSION = 2;
 const AUTOSAVE_DEBOUNCE_MS = 600;
@@ -99,7 +129,21 @@ function defaultPrefs(): Prefs {
     splitTabId: null,
     floatingChatOpen: false,
     floatingChatTabId: null,
+    // Provider defaults come from the selection module, not from literals, so
+    // there is one place that decides what "not configured yet" means.
+    ...DEFAULT_SELECTION,
   };
+}
+
+/** True when a preference patch changes how requests are routed. */
+function touchesProviderSelection(patch: Partial<Prefs>): boolean {
+  return (
+    patch.provider !== undefined ||
+    patch.ollamaBaseUrl !== undefined ||
+    patch.ollamaModel !== undefined ||
+    patch.allowNonLoopbackLocalProvider !== undefined ||
+    patch.remoteFallback !== undefined
+  );
 }
 
 function createTab(workspaceId: string): ResearchTab {
@@ -165,6 +209,7 @@ function defaultState(): AppState {
   workspaceSnapshots: [],
   templates: [],
   memory: {},
+  memoryState: emptyMemoryState(),
   activeWorkspaceId: workspace.id,
     activeTabId: tab.id,
     prefs: defaultPrefs(),
@@ -207,7 +252,12 @@ export class WorkspaceStore {
     try {
       const saved = await loadPersisted<PersistedState>();
       if (saved && Array.isArray(saved.workspaces) && saved.workspaces.length > 0) {
-        const prefs = { ...defaultPrefs(), ...saved.prefs };
+        // Provider preferences are repaired and written through to the provider
+        // layer before anything else loads: a run must never start with an
+        // unusable local selection that the panel would not show.
+        const providerPrefs = normaliseSelection(saved.prefs);
+        setProviderSelection(providerPrefs);
+        const prefs = { ...defaultPrefs(), ...saved.prefs, ...providerPrefs };
         const tabs = (saved.tabs ?? []).map((t) => ({
           ...t,
           lastOpenedAt: t.lastOpenedAt ?? t.updatedAt ?? 0,
@@ -215,6 +265,16 @@ export class WorkspaceStore {
         }));
         this.state = { ...defaultState(), ...saved, tabs, prefs, saveState: "saved", lastSavedAt: now() };
         this.state.memory = saved.memory || {};
+        // Memory records are migrated, never overwritten: state written before
+        // records existed is imported (marked origin-unknown) and legacy
+        // entries that cannot be read are reported rather than guessed at.
+        const migration = migrateMemoryState(saved.memoryState, saved.memory);
+        this.state.memoryState = migration.state;
+        if (migration.report.notes.length > 0) {
+          // Counts only — never record contents. `warn` because unexpected
+          // stored state (or dropped records) is worth noticing.
+          console.warn(`[memory] ${migration.report.notes.join(" ")}`);
+        }
         this.state.workspaceSnapshots = saved.workspaceSnapshots || [];
         this.state.templates = saved.templates || [];
         this.state.tabs = tabs.map((t) =>
@@ -233,6 +293,9 @@ export class WorkspaceStore {
       this.state = defaultState();
     }
     void loadObservability().catch(() => undefined);
+    // The tool audit trail is loaded with the run history: both are evidence of
+    // what the app did, and both survive a reload.
+    void loadToolAudit().catch(() => undefined);
     this.notify();
   }
 
@@ -282,6 +345,7 @@ export class WorkspaceStore {
       workspaceSnapshots: this.state.workspaceSnapshots,
       templates: this.state.templates,
       memory: this.state.memory,
+      memoryState: this.state.memoryState,
       activeWorkspaceId: this.state.activeWorkspaceId,
       activeTabId: this.state.activeTabId,
       prefs: this.state.prefs,
@@ -290,7 +354,13 @@ export class WorkspaceStore {
     };
     try {
       await persistState(persisted);
-      this.state = { ...persisted, saveState: "saved", lastSavedAt: now(), pendingRenameWorkspaceId: this.state.pendingRenameWorkspaceId };
+      this.state = {
+        ...persisted,
+        memoryState: this.state.memoryState,
+        saveState: "saved",
+        lastSavedAt: now(),
+        pendingRenameWorkspaceId: this.state.pendingRenameWorkspaceId,
+      };
     } catch {
       this.state = { ...this.state, saveState: "unsaved" };
     }
@@ -710,7 +780,18 @@ export class WorkspaceStore {
 
   setPrefs(patch: Partial<Prefs>): void {
     this.state = { ...this.state, prefs: { ...this.state.prefs, ...patch } };
+    // Provider choice is a preference in the UI but a single source in
+    // `src/providers/selection.ts`; write it through so a change takes effect
+    // immediately and cannot be applied by one path and ignored by the other.
+    if (touchesProviderSelection(patch)) {
+      setProviderSelection(this.providerSelectionFromPrefs());
+    }
     this.requestSave();
+  }
+
+  /** The stored preference, normalised through the selection module. */
+  providerSelectionFromPrefs(): ProviderSelection {
+    return normaliseSelection(this.state.prefs);
   }
 
   pushTabEvent(tabId: string, kind: TabEvent["kind"], detail?: string): void {
@@ -741,17 +822,195 @@ export class WorkspaceStore {
     this.requestSave();
   }
 
-  rememberExchange(workspaceId: string, question: string, answer: string): void {
-    if (!question.trim() || !answer.trim()) return;
+  /**
+   * Record a completed exchange twice, for two different jobs:
+   *
+   * - the legacy per-workspace summary, which follow-up detection reads;
+   * - an episodic memory record, which the operator can inspect, correct or
+   *   delete like anything else the system remembers.
+   *
+   * Returns the memory layer's outcome (created, duplicate, conflict or
+   * rejected) so the caller can record it in the change set (Mission 10). The
+   * episodic record is written with `origin: "model-inference"`, never as
+   * verified truth.
+   */
+  rememberExchange(workspaceId: string, question: string, answer: string, tabId?: string): MemoryAddResult | null {
+    if (!question.trim() || !answer.trim()) return null;
     const current = this.getMemory(workspaceId);
     const next = rememberExchange(current, question, answer);
     this.setMemory(workspaceId, next);
+
+    return this.addMemoryRecord({
+      category: "episodic",
+      content: `Q: ${question.trim()}\nA: ${answer.trim().slice(0, 1200)}`,
+      provenance: {
+        origin: "model-inference",
+        source: { type: "conversation", id: tabId ?? this.state.activeTabId ?? undefined, retrievedAt: now() },
+        note: "Recorded automatically from a completed research run in this workspace.",
+      },
+      scope: { workspaceId },
+      auto: true,
+    });
   }
 
-  memoryContextFor(workspaceId: string): string {
-    const memory = this.getMemory(workspaceId);
-    if (!memory.entries.length && !memory.goals.length && !memory.concepts.length && !memory.gaps.length) return "";
-    return formatMemoryContext(memory);
+  memoryContextFor(workspaceId: string, query = ""): string {
+    return memoryContextText(this.state.memoryState, workspaceId, query);
+  }
+
+  /** The memory layer as the panel needs it: records, history and health. */
+  memoryViewFor(workspaceId: string): MemoryView {
+    return memoryView(this.state.memoryState, workspaceId);
+  }
+
+  /**
+   * The data a tool may read, for one approved workspace, and nothing else.
+   *
+   * A tool never reaches into the store: it receives this snapshot, so what a
+   * tool can see is decided here, in one place, and a tool cannot widen its own
+   * reach. Items are filtered by workspace id again below, so a stray record that
+   * claims another workspace cannot be read through this path.
+   */
+  toolDataFor(workspaceId: string): ToolData {
+    const documents = this.state.documents
+      .filter((document) => document.workspaceId === workspaceId)
+      .map((document) => ({
+        id: document.id,
+        workspaceId: document.workspaceId,
+        name: document.name,
+        content: document.content,
+        status: document.status,
+        addedAt: document.addedAt,
+      }));
+
+    const notes = this.state.notes
+      .filter((note) => note.workspaceId === workspaceId)
+      .map((note) => ({ id: note.id, workspaceId: note.workspaceId, title: note.title, content: note.content, updatedAt: note.updatedAt }));
+
+    const knowledge = this.state.knowledge.nodes.map((node) => ({
+      id: node.id,
+      label: node.label,
+      type: node.type,
+      description: node.description,
+    }));
+
+    const records = this.memoryViewFor(workspaceId).records;
+    const byStatus: Record<string, number> = {};
+    for (const record of records) byStatus[record.status] = (byStatus[record.status] ?? 0) + 1;
+
+    const lastRun = getRuns().find((run) => run.workspaceId === workspaceId);
+
+    return {
+      documents,
+      notes,
+      knowledge,
+      memory: {
+        total: records.length,
+        byStatus,
+        // Only what a read-only tool needs: the content, the status an operator can
+        // act on, and the provenance line. The revision history stays behind.
+        records: records.map((record) => ({
+          id: record.id,
+          category: record.category,
+          content: record.content,
+          status: record.status,
+          origin: record.provenance.origin,
+          originNote: record.provenance.note,
+          retention:
+            record.retention.expiresAt !== undefined
+              ? `${record.retention.mode} until ${new Date(record.retention.expiresAt).toISOString().slice(0, 10)}`
+              : record.retention.mode,
+          tags: [...record.tags],
+          updatedAt: record.updatedAt,
+        })),
+      },
+      tabCount: this.state.tabs.filter((tab) => tab.workspaceId === workspaceId).length,
+      lastRun: lastRun
+        ? {
+            runId: lastRun.runId,
+            at: lastRun.at,
+            provider: lastRun.provider ?? "unknown",
+            local: lastRun.local === true,
+            ...(lastRun.errorCode ? { errorCode: lastRun.errorCode } : {}),
+            confidence: lastRun.confidence,
+            faithfulness: lastRun.faithfulness,
+          }
+        : null,
+    };
+  }
+
+  memoryRecordById(id: string): MemoryRecord | null {
+    return this.state.memoryState.records.find((record) => record.id === id) ?? null;
+  }
+
+  addMemoryRecord(input: MemoryInput): MemoryAddResult {
+    const result = addRecord(this.state.memoryState, input);
+    this.state = { ...this.state, memoryState: result.state };
+    this.requestSave();
+    return result;
+  }
+
+  editMemoryRecord(id: string, edit: MemoryEdit): { ok: boolean; reason?: string } {
+    const result = editRecord(this.state.memoryState, id, edit);
+    if (result.ok) {
+      this.state = { ...this.state, memoryState: result.state };
+      this.requestSave();
+    }
+    return { ok: result.ok, reason: result.reason };
+  }
+
+  deleteMemoryRecord(id: string, note: string): { ok: boolean; reason?: string } {
+    const result = deleteRecord(this.state.memoryState, id, note);
+    if (result.ok) {
+      this.state = { ...this.state, memoryState: result.state };
+      this.requestSave();
+    }
+    return { ok: result.ok, reason: result.reason };
+  }
+
+  setMemoryRetention(id: string, policy: RetentionPolicy, note: string): { ok: boolean; reason?: string } {
+    const result = setRetention(this.state.memoryState, id, policy, note);
+    if (result.ok) {
+      this.state = { ...this.state, memoryState: result.state };
+      this.requestSave();
+    }
+    return { ok: result.ok, reason: result.reason };
+  }
+
+  resolveMemoryDispute(winnerId: string, loserId: string, note: string): { ok: boolean; reason?: string } {
+    const result = resolveDispute(this.state.memoryState, winnerId, loserId, note);
+    if (result.ok) {
+      this.state = { ...this.state, memoryState: result.state };
+      this.requestSave();
+    }
+    return { ok: result.ok, reason: result.reason };
+  }
+
+  /** Clear every record of one workspace, or everything. Requires the scope key. */
+  clearMemoryScope(workspaceId: string | null, confirm: string, note: string): { ok: boolean; removed: number; reason?: string } {
+    const result = clearScope(this.state.memoryState, { workspaceId, confirm, note });
+    if (result.ok) {
+      this.state = { ...this.state, memoryState: result.state };
+      this.requestSave();
+    }
+    return { ok: result.ok, removed: result.removed, reason: result.reason };
+  }
+
+  /** Remove what retention policies say to remove; report what needs review. */
+  sweepMemoryRetention(): { expired: number; reviewDue: number } {
+    const sweep = applyRetention(this.state.memoryState);
+    if (sweep.expired.length > 0) {
+      this.state = { ...this.state, memoryState: sweep.state };
+      this.requestSave();
+    }
+    return { expired: sweep.expired.length, reviewDue: sweep.reviewDue.length };
+  }
+
+  memoryCategories(): MemoryCategory[] {
+    return ["episodic", "semantic", "procedural", "project", "source"];
+  }
+
+  memoryConflictCount(): number {
+    return detectConflicts(this.state.memoryState).length;
   }
 
   resolveFollowupQuery(workspaceId: string, query: string): FollowupResolution {
@@ -1091,9 +1350,16 @@ return results;
     this.requestSave();
   }
 
-  deriveGraphFromTab(tabId: string): void {
+  /**
+   * Fold this tab's text and messages into the knowledge graph.
+   *
+   * Returns the ids the graph gained, so a caller can record what a run changed
+   * (Mission 10). Nodes that already existed and were merely reinforced are not
+   * reported as added — an edit is not an addition.
+   */
+  deriveGraphFromTab(tabId: string): DerivedChangeKnowledgeEffect {
     const tab = this.state.tabs.find((t) => t.id === tabId);
-    if (!tab) return;
+    if (!tab) return { nodesAdded: [], edgesAdded: [] };
     const parts: KnowledgeDerivation[] = [];
     if (tab.fullText.trim()) {
       parts.push(ingestText(tab.fullText, { tabId, sources: [tab.title] }));
@@ -1103,9 +1369,16 @@ return results;
         parts.push(ingestText(m.content, { tabId, sources: [tab.title] }));
       }
     }
-    if (parts.length === 0) return;
-    this.state = { ...this.state, knowledge: applyDerivations(this.state.knowledge, parts) };
+    if (parts.length === 0) return { nodesAdded: [], edgesAdded: [] };
+    const nodeIdsBefore = new Set(this.state.knowledge.nodes.map((node) => node.id));
+    const edgeIdsBefore = new Set(this.state.knowledge.edges.map((edge) => edge.id));
+    const knowledge = applyDerivations(this.state.knowledge, parts);
+    this.state = { ...this.state, knowledge };
     this.requestSave();
+    return {
+      nodesAdded: knowledge.nodes.filter((node) => !nodeIdsBefore.has(node.id)).map((node) => node.id),
+      edgesAdded: knowledge.edges.filter((edge) => !edgeIdsBefore.has(edge.id)).map((edge) => edge.id),
+    };
   }
 
   deriveGraphFromDocument(documentId: string): void {

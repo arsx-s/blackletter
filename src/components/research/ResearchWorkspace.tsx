@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Columns, Cpu, FileText, Layout, Loader2, Plus, Search, UploadCloud, X } from "lucide-react";
 import { useWorkspaceStore, workspaceStore } from "../../stores/use-workspace";
 import { runPipeline } from "../../pipeline";
@@ -10,18 +10,17 @@ import { IntelligenceStrip } from "./IntelligenceStrip";
 import { ReportExport } from "./ReportExport";
 import { AiErrorBanner } from "../ui/ai-error-banner";
 import { toast } from "../ui/toast";
-import {
-  RESEARCH_STAGES,
-  parseReportSections,
-  extractEntities,
-  extractTimeline,
-  extractNotes,
-  extractFollowUpQuestions,
-} from "../../lib/research";
-import { extractTextFromFile } from "../../pipeline/documentEngine";
-import { MODEL_CATEGORIES, MODEL_CATALOG, categoryForModel } from "../../config/models";
+import { RESEARCH_STAGES } from "../../lib/research";
+import { deriveTabRecords, recordDerivedChange } from "../../integrity";
+import { extractForUpload, describeFailure } from "../../pipeline/documentEngine";
+import { MODEL_CATEGORIES, MODEL_CATALOG, modelForCategory, categoryForModel } from "../../config/models";
+
+/** The catalogue's balanced-tier model doubles as the "Recommended" marker. */
+const RECOMMENDED_MODEL = modelForCategory("balanced");
 import { adaptiveEngine } from "../../teaching/adaptive-engine";
 import { getReadableError } from "../../lib/error-utils";
+import { isCancelledError } from "../../lib/cancellation";
+import { isStopEngaged, loadStop, registerInFlight } from "../../control";
 import type { AiError } from "../../services/ai";
 import type { ExplanationMode } from "../../teaching/adaptive-engine";
 import type { WorkspaceDocument } from "../../types/workspace";
@@ -49,7 +48,7 @@ export function ResearchWorkspace({ onNewSession }: { onNewSession: () => void }
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <FileText size={28} className="mx-auto text-muted/40 mb-4" />
+          <FileText size={28} className="mx-auto text-faint mb-4" />
           <p className="font-display text-xl font-medium text-bone/80 mb-2">No session open</p>
           <p className="font-sans text-sm text-muted mb-6">Start a new research session to begin.</p>
           <button
@@ -143,6 +142,22 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
   const scrollRef = useRef<HTMLDivElement>(null);
   const [gapHits, setGapHits] = useState<ReturnType<typeof workspaceStore.graphGapHits>>([]);
   const [gapQuery, setGapQuery] = useState("");
+  /** Owns the in-flight run so the operator can actually abort it. */
+  const runControllerRef = useRef<AbortController | null>(null);
+  const unregisterStopRef = useRef<(() => void) | null>(null);
+  const runSequenceRef = useRef(0);
+  const [cancellable, setCancellable] = useState(false);
+
+  useEffect(
+    () => () => {
+      runSequenceRef.current += 1;
+      runControllerRef.current?.abort();
+      runControllerRef.current = null;
+      unregisterStopRef.current?.();
+      unregisterStopRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (gapQuery === input.trim()) return;
@@ -174,9 +189,34 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
     .map((id) => state.documents.find((d) => d.id === id))
     .filter((d) => d !== undefined);
 
+  const cancelResearch = () => {
+    // The abort rejects the awaited run; the catch/finally below performs the
+    // visible state transition and clears the stage ticker.
+    runControllerRef.current?.abort();
+  };
+
   const commitRun = async (topic: string, subject: string | null, mode: string | null) => {
+    await loadStop();
+    if (isStopEngaged()) {
+      toast("Global stop is engaged. Release it from the status bar before starting a research run.", "error");
+      return;
+    }
     const current = workspaceStore.getState().tabs.find((t) => t.id === tabId);
     if (!current) return;
+
+    // Starting a run supersedes any run still in flight.
+    runControllerRef.current?.abort();
+    unregisterStopRef.current?.();
+    const controller = new AbortController();
+    runControllerRef.current = controller;
+    const runId = ++runSequenceRef.current;
+    const unregisterStop = registerInFlight({
+      id: `research:${tabId}:${runId}`,
+      label: "research workspace run",
+      abort: () => controller.abort(),
+    });
+    unregisterStopRef.current = unregisterStop;
+    setCancellable(true);
 
     let adaptiveMode = "analogy";
     try {
@@ -223,20 +263,28 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
         maxTokens: workspaceStore.getState().prefs.maxTokens,
         workspaceId,
         tabId,
-        memoryContext: workspaceStore.memoryContextFor(workspaceId),
+        memoryContext: workspaceStore.memoryContextFor(workspaceId, topic),
         canvasContext: workspaceStore.canvasContextFor(workspaceId),
         metadata: { researchMode: mode, followupKind: resolution.kind },
+        signal: controller.signal,
       });
+
+      // A superseded or unmounted run must never commit late output.
+      if (runSequenceRef.current !== runId) return;
 
       const reportText = result.response;
       if (!reportText || !reportText.trim() || reportText.trim() === topic.trim()) {
         throw new Error("AI returned an empty or echoed response. Please try again.");
       }
-      const sections = parseReportSections(reportText);
-      const entities = extractEntities(reportText);
-      const timelineEvents = extractTimeline(reportText);
-      const notes = extractNotes(reportText);
-      const followUps = extractFollowUpQuestions(reportText);
+      // One derivation path (Mission 10): validated, deduplicated, provenance-
+      // carrying records only. The raw extractors are never read directly by a
+      // component.
+      const records = deriveTabRecords(reportText, {
+        tabId,
+        workspaceId,
+        runId: result.telemetry?.runId ?? null,
+        chunks: result.intelligence?.retrievedChunks ?? [],
+      });
 
       clearInterval(ticker);
       const fresh = workspaceStore.getState().tabs.find((t) => t.id === tabId);
@@ -245,36 +293,70 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
         streaming: false,
         pipelineStage: -1,
         docStage: "idle",
-        sections,
+        sections: records.sections,
         fullText: reportText,
-        entities,
-        timelineEvents,
-        notes,
-        followUps,
+        entities: records.entities,
+        timelineEvents: records.timelineEvents,
+        notes: records.notes,
+        followUps: records.followUps.map((followUp) => followUp.question),
+        followUpsOrigin: records.followUps.some((followUp) => followUp.origin === "app") ? "app" : "answer",
+        derivation: records.provenance,
         difficulty: result.difficulty || "intermediate",
         title: deriveTitle(topic),
         intelligence: result.intelligence
           ? {
               ...result.intelligence,
-              retrievedChunks: (result.intelligence.retrievedChunks ?? []).slice(0, 4).map((c) => ({ ...c, text: c.text.slice(0, 400) })),
+              // Chunks are stored whole: truncating their text would invalidate
+              // the locators the grounding report carries, and an unverifiable
+              // chunk must not be displayed as evidence.
             }
           : undefined,
         messages: fresh
-          ? [...fresh.messages, { role: "assistant", content: `Research complete — ${sections.length} sections, ${entities.length} entities, ${timelineEvents.length} timeline events.`, timestamp: Date.now() }]
+          ? [...fresh.messages, { role: "assistant", content: `Research complete — ${records.sections.length} sections, ${records.entities.length} entities, ${records.timelineEvents.length} timeline events.`, timestamp: Date.now() }]
           : undefined,
       });
-      workspaceStore.deriveGraphFromTab(tabId);
-      workspaceStore.rememberExchange(workspaceId, topic, reportText);
+
+      // What this run changed outside the tab, recorded for review.
+      const knowledge = workspaceStore.deriveGraphFromTab(tabId);
+      const memory = workspaceStore.rememberExchange(workspaceId, topic, reportText, tabId);
+      recordDerivedChange({
+        workspaceId,
+        tabId,
+        tabTitle: workspaceStore.getState().tabs.find((t) => t.id === tabId)?.title ?? topic,
+        provenance: records.provenance,
+        effects: {
+          knowledge,
+          memory: memory ? { outcome: memory.outcome, recordId: memory.record?.id ?? null, detail: memory.detail } : null,
+        },
+      });
       workspaceStore.pushTabEvent(tabId, "completed", `Completed in ${Math.round(result.telemetry?.totalMs ?? 0)}ms`);
     } catch (e) {
       clearInterval(ticker);
-      const fresh = workspaceStore.getState().tabs.find((t) => t.id === tabId);
-      workspaceStore.updateTab(tabId, {
-        phase: fresh && fresh.fullText ? "complete" : "researching",
-        streaming: false,
-        error: { code: (e as { code?: string })?.code || "SERVER", message: getReadableError(e) },
-      });
-      workspaceStore.pushTabEvent(tabId, "failed", `Failed: ${getReadableError(e)}`);
+      if (runSequenceRef.current !== runId) return;
+      if (isCancelledError(e)) {
+        const fresh = workspaceStore.getState().tabs.find((t) => t.id === tabId);
+        workspaceStore.updateTab(tabId, {
+          phase: fresh && fresh.fullText ? "complete" : "selecting-subject",
+          streaming: false,
+          pipelineStage: -1,
+          docStage: "idle",
+          error: null,
+        });
+        workspaceStore.pushTabEvent(tabId, "cancelled", "Stopped by the operator");
+      } else {
+        const fresh = workspaceStore.getState().tabs.find((t) => t.id === tabId);
+        workspaceStore.updateTab(tabId, {
+          phase: fresh && fresh.fullText ? "complete" : "researching",
+          streaming: false,
+          error: { code: (e as { code?: string })?.code || "SERVER", message: getReadableError(e) },
+        });
+        workspaceStore.pushTabEvent(tabId, "failed", `Failed: ${getReadableError(e)}`);
+      }
+    } finally {
+      if (runControllerRef.current === controller) runControllerRef.current = null;
+      unregisterStop();
+      if (unregisterStopRef.current === unregisterStop) unregisterStopRef.current = null;
+      if (runSequenceRef.current === runId) setCancellable(false);
     }
   };
 
@@ -307,20 +389,20 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
         continue;
       }
       try {
-        const content = await extractTextFromFile(file);
+        const extracted = await extractForUpload(file);
         const docId = workspaceStore.addDocument({
           workspaceId: tab.workspaceId,
           folderId: null,
           name: file.name,
           extension: ext.replace(".", ""),
           size: file.size,
-          pageCount: null,
-          content,
+          pageCount: extracted.pageCount,
+          content: extracted.text,
         });
         workspaceStore.attachDocumentToTab(tabId, docId);
         workspaceStore.deriveGraphFromDocument(docId);
-      } catch {
-        workspaceStore.updateTab(tabId, { error: { code: "UNSUPPORTED_FILE", message: `Could not extract text from ${file.name}.` } });
+      } catch (error) {
+        workspaceStore.updateTab(tabId, { error: describeFailure(error, file.name) });
       }
     }
     workspaceStore.updateTab(tabId, { docStage: "idle" });
@@ -353,7 +435,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                   onChange={(e) => setModelSearch(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Escape") setModelOpen(false); }}
                   placeholder="Search models…"
-                  className="w-full bg-transparent font-sans text-xs outline-none placeholder:text-muted/40 text-bone/80"
+                  className="w-full bg-transparent font-sans text-xs outline-none placeholder:text-faint text-bone/80"
                 />
               </div>
               <div className="max-h-72 overflow-y-auto scrollbar-hide py-1">
@@ -373,7 +455,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 font-medium text-bone/80">
                             {m.label}
-                            {m.id === "openai/gpt-4o-mini" && (
+                            {m.id === RECOMMENDED_MODEL && (
                               <span className="px-1 py-0.5 rounded-full bg-accent/10 border border-accent/25 font-mono text-2xs text-accent">Recommended</span>
                             )}
                           </p>
@@ -412,7 +494,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                   const cat = MODEL_CATEGORIES.find((c) => c.id === categoryForModel(m.id));
                   return m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || (cat?.label.toLowerCase().includes(q) ?? false);
                 }).length === 0 && (
-                  <p className="px-3 py-3 font-sans text-2xs text-muted/60">No models match &ldquo;{modelSearch}&rdquo;.</p>
+                  <p className="px-3 py-3 font-sans text-2xs text-faint">No models match &ldquo;{modelSearch}&rdquo;.</p>
                 )}
               </div>
             </div>
@@ -444,7 +526,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                 </button>
               </span>
             ))}
-            {docs.length > 3 && <span className="font-mono text-2xs text-muted/60">+{docs.length - 3}</span>}
+            {docs.length > 3 && <span className="font-mono text-2xs text-faint">+{docs.length - 3}</span>}
           </div>
         )}
 
@@ -537,7 +619,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
               wrap={state.prefs.wordWrap ? "soft" : "off"}
               placeholder="e.g. How does the EU AI Act regulate high-risk systems?"
               rows={3}
-              className="w-full bg-bone/[0.03] border border-border px-4 py-3 font-sans bl-prose outline-none focus:border-accent/50 transition-colors resize-none placeholder:text-muted/40"
+              className="w-full bg-bone/[0.03] border border-border px-4 py-3 font-sans bl-prose outline-none focus:border-accent/50 transition-colors resize-none placeholder:text-faint"
             />
 
             {gapHits.length > 0 && (
@@ -559,15 +641,15 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
               </div>
             )}
 
-            <div className="flex items-center justify-between mt-3">
+            <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
                 onClick={beginWizard}
                 disabled={!(input.trim() || tab.topic.trim())}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-sm bg-accent text-surface font-sans text-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex w-full items-center justify-center gap-2 rounded-sm bg-accent px-5 py-2.5 font-sans text-xs font-semibold text-surface transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 focus-ring sm:w-auto"
               >
                 Begin research <ArrowRight size={13} />
               </button>
-              <span className="font-mono text-2xs text-muted/60">Enter to run · Shift+Enter for a new line</span>
+              <span className="font-mono text-2xs text-faint">Enter to run · Shift+Enter for a new line</span>
             </div>
           </div>
         )}
@@ -626,7 +708,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                       )}
                     </div>
                     <span
-                      className={`font-sans text-xs transition-colors ${status === "active" ? "text-bone font-medium" : status === "done" ? "text-bone/50" : "text-muted/60"}`}
+                      className={`font-sans text-xs transition-colors ${status === "active" ? "text-bone font-medium" : status === "done" ? "text-faint" : "text-faint"}`}
                     >
                       {label}
                     </span>
@@ -634,6 +716,18 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                 );
               })}
             </div>
+
+            {cancellable && (
+              <div className="mt-8 flex justify-center">
+                <button
+                  onClick={cancelResearch}
+                  className="inline-flex items-center gap-2 rounded-sm border border-border-strong px-4 py-2 font-sans text-xs font-medium text-bone transition-colors hover:bg-bone/[0.06] focus-ring"
+                >
+                  <span className="h-2.5 w-2.5 rounded-2xs bg-current" aria-hidden="true" />
+                  Stop research
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -669,7 +763,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
               </div>
             )}
 
-            <FollowUpQuestions questions={tab.followUps} onSelect={(q) => handleFollowUp(q)} />
+            <FollowUpQuestions questions={tab.followUps} onSelect={(q) => handleFollowUp(q)} origin={tab.followUpsOrigin} />
 
             <div className="mt-10 pt-6 border-t border-border">
               <p className="font-mono text-2xs uppercase tracking-ultra text-muted mb-3">Continue this session</p>
@@ -688,7 +782,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
                   wrap={state.prefs.wordWrap ? "soft" : "off"}
                   placeholder="Ask a follow-up question…"
                   rows={2}
-                  className="w-full bg-bone/[0.03] border border-border px-4 py-3 font-sans bl-prose outline-none focus:border-accent/50 transition-colors resize-none placeholder:text-muted/40"
+                  className="w-full bg-bone/[0.03] border border-border px-4 py-3 font-sans bl-prose outline-none focus:border-accent/50 transition-colors resize-none placeholder:text-faint"
                 />
                 <button
                   onClick={() => {
@@ -708,7 +802,7 @@ function Session({ tabId, onNewSession }: { tabId: string; onNewSession: () => v
         )}
       </div>
 
-      <ReportExport open={exportOpen} onClose={() => setExportOpen(false)} topic={tab.topic} mode={tab.mode ?? ""} fullText={tab.fullText} intelligence={tab.intelligence} />
+      <ReportExport open={exportOpen} onClose={() => setExportOpen(false)} topic={tab.topic} mode={tab.mode ?? ""} fullText={tab.fullText} intelligence={tab.intelligence} derivation={tab.derivation} />
 
       <input ref={attachFileInput} type="file" accept={ACCEPTED_EXTENSIONS.join(",")} multiple className="hidden" onChange={(e) => void handleUpload(e.target.files)} />
     </div>

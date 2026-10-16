@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { toast } from "../ui/toast";
 import { cn } from "../../lib/utils";
 import { useWorkspaceStore, workspaceStore } from "../../stores/use-workspace";
-import { extractTextFromFile } from "../../pipeline/documentEngine";
+import { extractForUpload, describeFailure } from "../../pipeline/documentEngine";
 
 const PAGE_SIZE = 40;
 
@@ -49,21 +49,23 @@ export function DocumentViewer() {
     if (!file) return;
     setUploading(true);
     try {
-      const text = await extractTextFromFile(file);
+      const extracted = await extractForUpload(file);
       const id = workspaceStore.addDocument({
         workspaceId: state.activeWorkspaceId,
         folderId: null,
         name: file.name,
         extension: file.name.substring(file.name.lastIndexOf(".") + 1).toLowerCase(),
         size: file.size,
-        pageCount: null,
-        content: text,
+        pageCount: extracted.pageCount,
+        content: extracted.text,
       });
       setActiveDocId(id);
       setCurrentPage(0);
+      for (const warning of extracted.warnings) console.warn(`[${file.name}] ${warning}`);
       toast("Document uploaded.", "success");
-    } catch {
-      toast("Failed to read file. Supported: .txt, .md, .pdf, .docx", "error");
+    } catch (error) {
+      const failure = describeFailure(error, file.name);
+      toast(failure.message, "error");
     } finally {
       setUploading(false);
     }

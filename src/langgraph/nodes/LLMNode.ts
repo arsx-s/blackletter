@@ -1,7 +1,8 @@
-import type { GraphState } from "../types";
+import type { GraphState, RunContext } from "../types";
 import { log, logError } from "../logger";
 import { generateStream } from "../../providers/provider";
 import { getReadableError } from "../../lib/error-utils";
+import { isCancelledError } from "../../lib/cancellation";
 
 const REQUEST_TIMEOUT = 60000;
 
@@ -23,7 +24,7 @@ function extractApiError(parsed: Record<string, unknown>): string | null {
   return null;
 }
 
-export async function LLMNode(state: GraphState): Promise<Partial<GraphState>> {
+export async function LLMNode(state: GraphState, ctx: RunContext = {}): Promise<Partial<GraphState>> {
   log("NODE", "LLMNode: generating AI response");
 
   const prompt = state.generatedPrompt;
@@ -36,6 +37,16 @@ export async function LLMNode(state: GraphState): Promise<Partial<GraphState>> {
   let fullResponse = "";
   let chunkCount = 0;
   let lastError: string | null = null;
+  /**
+   * Filled in by the provider layer before the first byte arrives, so the run is
+   * labelled with the provider that actually ran — including when an opted-in
+   * fallback moved it off the local runtime.
+   *
+   * Held in an object because the assignment happens in a callback: a plain
+   * `let` would be narrowed to `null` by the control-flow analyser and the
+   * recorded provider would be lost.
+   */
+  const used: { info: { provider: string; local: boolean; fallback: boolean } | null } = { info: null };
 
   try {
     for await (const chunk of generateStream({
@@ -44,11 +55,20 @@ export async function LLMNode(state: GraphState): Promise<Partial<GraphState>> {
       model: state.model || undefined,
       temperature: state.temperature ?? 0.7,
       maxTokens: state.maxTokens ?? 4096,
+      signal: ctx.signal,
+      onProvider: (info) => {
+        used.info = { provider: info.provider, local: info.provider === "ollama", fallback: info.fallback };
+      },
     })) {
       chunkCount++;
       fullResponse += chunk;
     }
   } catch (e) {
+    // Preserve the cancellation code so it is never reported as a failure.
+    if (isCancelledError(e)) {
+      log("NODE", "LLMNode: cancelled by the operator");
+      return { error: "Cancelled by the operator.", errorCode: "CANCELLED" };
+    }
     const msg = getReadableError(e);
     const code = (e as { code?: string })?.code || "SERVER";
     logError("NODE", `LLMNode: generation failed — ${msg}`);
@@ -68,5 +88,16 @@ export async function LLMNode(state: GraphState): Promise<Partial<GraphState>> {
   }
 
   log("NODE", `LLMNode: received ${fullResponse.length} chars in ${chunkCount} chunks`);
-  return { aiResponse: fullResponse };
+  const info = used.info;
+  return {
+    aiResponse: fullResponse,
+    ...(info
+      ? {
+          provider: info.provider,
+          providerLocal: info.local,
+          providerFallback: info.fallback,
+          telemetry: { ...state.telemetry, provider: info.provider, local: info.local, providerFallback: info.fallback },
+        }
+      : {}),
+  };
 }

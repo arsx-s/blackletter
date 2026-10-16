@@ -15,6 +15,12 @@ export interface RunRecord {
   tabId: string;
   query: string;
   model: string;
+  /** Which provider produced the answer, when the run recorded one. */
+  provider?: string;
+  /** True when the tokens were produced on this machine. */
+  local?: boolean;
+  /** True when an opted-in fallback replaced a local run. */
+  providerFallback?: boolean;
   totalMs: number;
   retrievalMs: number;
   generationMs: number;

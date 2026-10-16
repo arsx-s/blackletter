@@ -5,7 +5,10 @@ import { Button } from "../ui/button";
 import { MODE_LABELS } from "../../lib/research";
 import { renderMarkdown } from "./ResearchReport";
 import type { TabIntelligence } from "../../types/workspace";
-import { confidenceLabel } from "../../pipeline/scoring";
+import type { DerivationProvenance } from "../../integrity/types";
+import { confidenceLabelOrNull } from "../../pipeline/scoring";
+import { EVIDENCE_WINDOW, formatLocator } from "../../pipeline/grounding";
+import { CAVEAT, describeEvidenceCoverage } from "../../eval/calibration";
 
 interface ReportExportProps {
   open: boolean;
@@ -14,6 +17,8 @@ interface ReportExportProps {
   mode: string;
   fullText: string;
   intelligence?: TabIntelligence | null;
+  /** The derivation that produced this tab's records, when one was recorded. */
+  derivation?: DerivationProvenance | null;
 }
 
 const FORMATS = [
@@ -21,7 +26,118 @@ const FORMATS = [
   { id: "html", label: "HTML", icon: Globe, ext: ".html" },
 ] as const;
 
-export function ReportExport({ open, onClose, topic, mode, fullText, intelligence }: ReportExportProps) {
+/**
+ * The appendix appended to an exported report.
+ *
+ * It reports only what the run established. A component that could not be
+ * measured reads "not measured" — it is never given a number — and every
+ * citation is listed with the evidence it resolved to, or with the fact that it
+ * resolved to nothing. An export is the artefact most likely to be read away
+ * from the app, so it is the last place a fabricated figure should appear.
+ *
+ * Since Mission 10 it also carries the confidence caveat verbatim, the evidence
+ * coverage label, and — when the tab has one — the derivation's provenance: what
+ * was derived, what support it could be checked against, and what issues the
+ * boundary reported.
+ */
+function buildIntelligenceBlock(intelligence: TabIntelligence, derivation?: DerivationProvenance | null): string {
+  const confidence = intelligence.confidence;
+  const faithfulness = intelligence.faithfulness;
+  const hallucination = intelligence.hallucination;
+  const grounding = intelligence.groundingReport ?? null;
+  const citations = grounding?.citations ?? null;
+  const sources = intelligence.groundedSources ?? [];
+  const chunks = intelligence.retrievedChunks ?? [];
+  const unverifiable = new Set((grounding?.unverifiable ?? []).map((entry) => entry.chunkId));
+
+  const lines: string[] = ["", "---", "", "## Intelligence Summary", ""];
+
+  const label = confidenceLabelOrNull(confidence?.score);
+  lines.push(
+    `- **Confidence:** ${confidence?.score != null ? `${confidence.score}/100${label ? ` (${label})` : ""}` : "not measured"}`,
+    `  - ${CAVEAT}`,
+  );
+
+  const coverage = describeEvidenceCoverage({
+    retrievedChunkCount: chunks.length,
+    topRetrievalScore: chunks.reduce<number | null>(
+      (best, chunk) => (best === null || chunk.score > best ? chunk.score : best),
+      null,
+    ),
+    faithfulnessScore: faithfulness?.score ?? null,
+  });
+  lines.push(`- **Evidence coverage:** ${coverage.level} — ${coverage.criteria}`);
+
+  if (confidence) {
+    for (const component of confidence.components) {
+      lines.push(
+        `  - ${component.name}: ${
+          component.value !== null ? `${Math.round(component.value * 100)}%` : `not measured — ${component.reason ?? "no basis"}`
+        } (${component.basis})`,
+      );
+    }
+  }
+
+  lines.push(
+    `- **Faithfulness:** ${faithfulness?.score != null ? `${Math.round(faithfulness.score * 100)}%` : "not measured"}`,
+    `- **Claims:** ${faithfulness?.supportedClaims.length ?? 0} supported, ${faithfulness?.unsupportedClaims.length ?? 0} unsupported, ${faithfulness?.unjudgedSentences?.length ?? 0} not judged`,
+    `- **Hallucination:** ${hallucination?.present ? `flagged ${hallucination.flaggedClaims.length} unsupported claim(s)` : "none detected"}`,
+  );
+
+  if (citations) {
+    lines.push(
+      `- **Citations:** ${citations.resolved.length} of ${citations.markers.length} marker(s) resolved`,
+      ...(citations.unresolved.length > 0
+        ? [`  - unresolved: ${citations.unresolved.map((entry) => entry.marker).join(" ")}`]
+        : []),
+      ...(citations.weakCitations.length > 0
+        ? [`  - below grounding threshold: ${citations.weakCitations.map((entry) => entry.marker).join(" ")}`]
+        : []),
+    );
+  }
+
+  lines.push(
+    `- **Grounded sources:** ${sources.length > 0
+      ? sources
+          .map((source) => `${source.name}${source.pages && source.pages.length > 0 ? ` (pages ${source.pages.join(", ")})` : ""}`)
+          .join(", ")
+      : "none"}`,
+    `- **Retrieved chunks:** ${chunks.length}${chunks.length > 0 ? `, ${chunks.filter((chunk) => chunk.location && !unverifiable.has(chunk.id)).length} verified against their source` : ""}`,
+    `- **Latency:** ${intelligence.telemetry?.totalMs != null ? `${Math.round(intelligence.telemetry.totalMs)}ms` : "—"}`,
+  );
+
+  if (chunks.length > 0) {
+    lines.push("", "### Evidence", "", "| Marker | Source | Chunk | Verified |", "| --- | --- | --- | --- |");
+    chunks.slice(0, EVIDENCE_WINDOW).forEach((chunk, index) => {
+      const verified = chunk.location && !unverifiable.has(chunk.id) ? "yes" : "no";
+      lines.push(`| [${index + 1}] | ${formatLocator(chunk.location)} | \`${chunk.id}\` | ${verified} |`);
+    });
+  }
+
+  if (derivation) {
+    lines.push(
+      "",
+      "### Derived records",
+      "",
+      `- **Extracted from:** answer \`${derivation.answerDigest}\` (${derivation.answerChars.toLocaleString()} characters), schema v${derivation.version}`,
+      `- **Run:** ${derivation.runId ?? "not recorded (the tab was written without a run id)"}`,
+      `- **Kept:** ${derivation.counts.sections} sections, ${derivation.counts.entities} entities, ${derivation.counts.timeline} timeline entries, ${derivation.counts.notes} notes, ${derivation.counts.followUps} follow-ups`,
+      `- **Support:** ${derivation.counts.supported} record(s) matched text in a retrieved chunk (supported), ${derivation.counts.unverified} matched none (unverified). "Supported" means a retrieved chunk contains the record's text; it is not a verification of the claim.`,
+      `- **Boundary issues:** dropped ${derivation.counts.dropped}, merged ${derivation.counts.merged}`,
+    );
+    const issueCodes = Object.entries(derivation.issueTotals).filter(([, count]) => (count ?? 0) > 0);
+    if (issueCodes.length > 0) {
+      lines.push(`  - by code: ${issueCodes.map(([code, count]) => `${code} ×${count}`).join(", ")}`);
+    }
+    for (const issue of derivation.issues.slice(0, 10)) {
+      lines.push(`  - [${issue.code}] ${issue.kind}: ${issue.detail}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+export function ReportExport({ open, onClose, topic, mode, fullText, intelligence, derivation }: ReportExportProps) {
   const [format, setFormat] = useState<string>("markdown");
 
   useEffect(() => {
@@ -36,19 +152,7 @@ export function ReportExport({ open, onClose, topic, mode, fullText, intelligenc
   const handleExport = () => {
     const modeLabel = (MODE_LABELS as Record<string, string>)[mode] || mode;
     const intelBlock = intelligence
-      ? [
-          "",
-          "---",
-          "",
-          "## Intelligence Summary",
-          "",
-          `- **Confidence:** ${intelligence.confidence?.score != null ? `${intelligence.confidence.score}/100` : "—"} (${intelligence.confidence ? confidenceLabel(intelligence.confidence.score) : "n/a"})`,
-          `- **Faithfulness:** ${intelligence.faithfulness?.score != null ? `${Math.round(intelligence.faithfulness.score * 100)}%` : "—"}`,
-          `- **Hallucination:** ${intelligence.hallucination?.present ? `flagged ${intelligence.hallucination.flaggedClaims.length} unsupported claim(s)` : "none detected"}`,
-          `- **Grounded sources:** ${intelligence.groundedSources?.length ? intelligence.groundedSources.map((s) => s.name).join(", ") : "none"}`,
-          `- **Retrieved chunks:** ${intelligence.retrievedChunks?.length ?? 0}`,
-          `- **Latency:** ${intelligence.telemetry?.totalMs != null ? `${Math.round(intelligence.telemetry.totalMs)}ms` : "—"}`,
-        ].join("\n")
+      ? buildIntelligenceBlock(intelligence, derivation)
       : "";
     const header = `# ${topic}\n\n**Research Mode:** ${modeLabel}\n\n---\n\n`;
     const content = header + fullText + intelBlock;

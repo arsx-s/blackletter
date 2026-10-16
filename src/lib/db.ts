@@ -76,6 +76,41 @@ export async function kvPut(key: string, value: unknown): Promise<void> {
   });
 }
 
+/** Atomically replace several application keys during a validated restore. */
+export async function kvPutMany(entries: Record<string, unknown>): Promise<void> {
+  const keys = Object.keys(entries);
+  if (!supportsIndexedDB()) {
+    const previous = new Map(keys.map((key) => [key, localStorage.getItem(key)]));
+    const serialised = new Map(keys.map((key) => [key, JSON.stringify(entries[key])]));
+    try {
+      for (const key of keys) localStorage.setItem(key, serialised.get(key)!);
+    } catch (error) {
+      for (const key of keys) {
+        const old = previous.get(key);
+        try {
+          if (old === null || old === undefined) localStorage.removeItem(key);
+          else localStorage.setItem(key, old);
+        } catch {
+          // Preserve the original failure; rollback is best-effort on the
+          // quota-limited localStorage fallback.
+        }
+      }
+      throw error;
+    }
+    return;
+  }
+
+  const db = await getDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(KV_STORE, "readwrite");
+    const store = tx.objectStore(KV_STORE);
+    for (const key of keys) store.put(entries[key], key);
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error ?? new Error("The restore transaction was aborted."));
+    tx.onerror = () => reject(tx.error ?? new Error("The restore transaction failed."));
+  });
+}
+
 export async function kvDelete(key: string): Promise<void> {
   if (!supportsIndexedDB()) {
     try {

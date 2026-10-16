@@ -3,12 +3,15 @@ import { getModel } from "../config/models";
 import { getReadableError } from "../lib/error-utils";
 import { isElectron } from "../lib/electron";
 import { devLog } from "../lib/dev-log";
+import { CancelledError, isCancelledError, linkAbort } from "../lib/cancellation";
+import { relayAuthHeaders } from "../lib/relay-auth";
 
 const REQUEST_TIMEOUT = 60000;
+/** One retry, and never for a cancellation. */
 const MAX_RETRIES = 1;
 
 function makeError(code: string, message: string): AiError {
-  console.error(`[OpenRouter] ${code}: ${message}`);
+  if (code !== "CANCELLED") console.error(`[OpenRouter] ${code}: ${message}`);
   return { code, message };
 }
 
@@ -30,27 +33,39 @@ export async function* streamOpenRouter(
   model?: string,
   temperature?: number,
   maxTokens?: number,
+  /**
+   * Optional caller-owned cancellation. When it aborts, the fetch aborts, no
+   * retry is attempted, and a `CancelledError` (code `CANCELLED`) is thrown so
+   * the UI can distinguish a deliberate stop from a failure.
+   */
+  signal?: AbortSignal,
+  /** Called once per retry attempt that is actually started. */
+  onRetry?: (attempt: number) => void,
 ): AsyncGenerator<string, void, unknown> {
   const selectedModel = model || getModel("default");
   let lastError: AiError | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // A cancellation is final: never begin (or resume) a retry for one.
+    if (signal?.aborted) throw new CancelledError();
+
     if (attempt > 0) {
       const backoff = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 500, 4000);
+      onRetry?.(attempt);
       devLog(`[OpenRouter] retry ${attempt}/${MAX_RETRIES} after ${Math.round(backoff)}ms`);
       await sleep(backoff);
+      if (signal?.aborted) throw new CancelledError();
     }
 
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const link = linkAbort(signal, REQUEST_TIMEOUT);
 
+    try {
       let response: Response;
       try {
         const base = isElectron() ? (window.electronAPI?.apiBase ?? "") : "";
         response = await fetch(`${base}/api/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...relayAuthHeaders() },
           body: JSON.stringify({
             prompt,
             systemInstruction: systemInstruction || undefined,
@@ -58,15 +73,22 @@ export async function* streamOpenRouter(
             temperature: temperature !== undefined ? temperature : undefined,
             maxTokens: maxTokens !== undefined ? maxTokens : undefined,
           }),
-          signal: controller.signal,
+          signal: link.signal,
         });
-      } finally {
-        clearTimeout(timer);
+      } catch (e) {
+        // Only a caller cancellation short-circuits here. A timeout abort is
+        // deliberately re-thrown so the outer handler can classify it.
+        if (link.reason === "cancelled") throw new CancelledError();
+        throw e;
       }
 
       if (!response.ok) {
         let errorBody = "";
-        try { errorBody = await response.text(); } catch { /* body may be unreadable */ }
+        try {
+          errorBody = await response.text();
+        } catch {
+          /* body may be unreadable */
+        }
 
         if (response.status === 429) {
           let retryAfter = 10;
@@ -119,6 +141,7 @@ export async function* streamOpenRouter(
           if (parsed?.error) {
             const err = parsed.error as Record<string, unknown>;
             const code = typeof err.code === "string" ? err.code : "SERVER";
+            if (code === "CANCELLED") throw new CancelledError();
             throw makeError(code, (err.message as string) || "API error");
           }
 
@@ -141,14 +164,23 @@ export async function* streamOpenRouter(
 
       return;
     } catch (e) {
+      // The controller that performed the abort knows *why* it fired, so it is
+      // authoritative. A bare DOM `AbortError` cannot distinguish a user
+      // cancellation from a timeout, and guessing here is what previously made
+      // a cancelled run retry and then report itself as "timed out".
+      if (link.reason === "cancelled") throw new CancelledError();
+      if (e instanceof CancelledError) throw e;
+
+      if (link.reason === "timeout") {
+        lastError = makeError("TIMEOUT", `Request timed out after ${REQUEST_TIMEOUT}ms.`);
+        continue;
+      }
+
       if (isAiError(e)) {
         throw e;
       }
 
-      if (e instanceof DOMException && e.name === "AbortError") {
-        lastError = makeError("TIMEOUT", `Request timed out after ${REQUEST_TIMEOUT}ms.`);
-        continue;
-      }
+      if (isCancelledError(e)) throw new CancelledError();
 
       if (e instanceof TypeError) {
         lastError = makeError("NETWORK", `Network error: ${e.message}. Check your connection.`);
@@ -157,6 +189,8 @@ export async function* streamOpenRouter(
 
       lastError = makeError("SERVER", `Unexpected error: ${getReadableError(e)}`);
       continue;
+    } finally {
+      link.dispose();
     }
   }
 
@@ -175,3 +209,5 @@ function parseJsonSafe(text: string): Record<string, unknown> | null {
 function isAiError(e: unknown): e is AiError {
   return typeof e === "object" && e !== null && "code" in e;
 }
+
+export type { AiRequest, AiResponse, AiError };

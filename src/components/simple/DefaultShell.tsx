@@ -34,6 +34,21 @@ export function DefaultShell({ onExit }: DefaultShellProps) {
     if (s.tabs.length === 0) workspaceStore.createTab();
   }, []);
 
+  // `sidebarOpen` is seeded from the viewport at mount and then shared by both the
+  // desktop rail and the mobile drawer. If the viewport shrinks across the md
+  // breakpoint after mount — rotating a tablet, or a desktop window being dragged
+  // narrow — the drawer would otherwise be left open, covering the content it is
+  // supposed to be an overlay for.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mobile = window.matchMedia("(max-width: 767px)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setSidebarOpen(false);
+    };
+    mobile.addEventListener("change", onChange);
+    return () => mobile.removeEventListener("change", onChange);
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n" && !e.shiftKey) {
@@ -55,6 +70,11 @@ export function DefaultShell({ onExit }: DefaultShellProps) {
       }
       if (e.key === "Escape") {
         setProfileOpen(false);
+        // Only the mobile drawer is Escape-dismissible; on desktop this same flag
+        // drives the persistent rail, which Escape must not hide.
+        if (typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches) {
+          setSidebarOpen(false);
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -134,7 +154,7 @@ export function DefaultShell({ onExit }: DefaultShellProps) {
                 }}
                 onBlur={saveName}
                 placeholder="Your name"
-                className="w-full bg-bone/[0.03] border border-border px-2.5 py-1.5 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-muted/40"
+                className="w-full bg-bone/[0.03] border border-border px-2.5 py-1.5 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-faint"
               />
             </div>
           )}

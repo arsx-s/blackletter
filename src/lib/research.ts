@@ -1,3 +1,5 @@
+import type { DerivedRecordProvenance } from "../integrity/types";
+
 export type ResearchMode =
   | "quick-overview"
   | "student-study"
@@ -18,10 +20,19 @@ export interface ResearchConfig {
   documents?: string[];
 }
 
+/**
+ * The four derived record shapes.
+ *
+ * `provenance` is optional on the type because records restored from a store
+ * written before Mission 10 have none — those are read as "origin unknown" rather
+ * than migrated into a claim. Everything the derivation boundary produces in this
+ * build carries it.
+ */
 export interface ReportSection {
   id: string;
   title: string;
   content: string;
+  provenance?: DerivedRecordProvenance;
 }
 
 export interface Entity {
@@ -29,6 +40,7 @@ export interface Entity {
   type: "person" | "organization" | "concept" | "location" | "event";
   name: string;
   description: string;
+  provenance?: DerivedRecordProvenance;
 }
 
 export interface TimelineEvent {
@@ -36,12 +48,14 @@ export interface TimelineEvent {
   date: string;
   title: string;
   description: string;
+  provenance?: DerivedRecordProvenance;
 }
 
 export interface ResearchNote {
   id: string;
   type: "fact" | "idea" | "question" | "definition" | "quote" | "number";
   content: string;
+  provenance?: DerivedRecordProvenance;
 }
 
 export interface Source {
@@ -181,6 +195,15 @@ export function extractNotes(text: string): ResearchNote[] {
   return notes;
 }
 
+/**
+ * Questions the answer itself asked.
+ *
+ * This function reports only what is in the text. It used to substitute five
+ * hard-coded questions when the answer asked none — records the answer never
+ * contained, presented as if it had. Those now live in
+ * `suggestedFollowUpQuestions`, whose results the UI labels as the application's
+ * suggestions, because a fallback is not a finding.
+ */
 export function extractFollowUpQuestions(text: string): string[] {
   const questions: string[] = [];
   const qRegex = /\?\s*$/gm;
@@ -190,16 +213,24 @@ export function extractFollowUpQuestions(text: string): string[] {
       questions.push(s.trim().replace(/^\d+[.)]\s*/, ""));
     }
   }
-  if (questions.length === 0) {
-    questions.push(
-      "What are the most significant implications of this topic?",
-      "How does this compare to related developments?",
-      "What are the primary areas of disagreement among experts?",
-      "What recent developments have changed our understanding?",
-      "What knowledge gaps remain in this field?",
-    );
-  }
   return questions;
+}
+
+/**
+ * Prompts this application suggests when an answer ends without questions.
+ *
+ * They are the app's words, not the model's, and the UI must say so wherever they
+ * are shown. Kept as a function rather than a constant so callers copy the list
+ * instead of sharing a mutable one.
+ */
+export function suggestedFollowUpQuestions(): string[] {
+  return [
+    "What are the most significant implications of this topic?",
+    "How does this compare to related developments?",
+    "What are the primary areas of disagreement among experts?",
+    "What recent developments have changed our understanding?",
+    "What knowledge gaps remain in this field?",
+  ];
 }
 
 export function buildSystemPrompt(mode: ResearchMode, topic: string, hasDocs: boolean, subject?: string): string {

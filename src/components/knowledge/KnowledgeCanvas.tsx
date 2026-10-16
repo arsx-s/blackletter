@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  ReactFlow, Background, useReactFlow, ReactFlowProvider,
+  ReactFlow, Background, Handle, Position, useNodesInitialized, useReactFlow, ReactFlowProvider,
 } from "reactflow";
 import { Star } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -20,27 +20,47 @@ interface NodeData {
   node: KnowledgeNode;
 }
 
-function KnowledgeNodeVis({ data, selected }: NodeProps<NodeData>) {
+// React Flow can only route an edge between two measured handles. This graph renders
+// node bodies as bare circles with no visible connectors, so both handles are parked at
+// the circle's centre and made invisible/non-interactive. Without them React Flow drops
+// every edge (and logs one "Couldn't create edge for source handle id" warning per edge).
+const HANDLE_STYLE: React.CSSProperties = {
+  opacity: 0,
+  width: 1,
+  height: 1,
+  minWidth: 0,
+  minHeight: 0,
+  border: 0,
+  background: "transparent",
+  top: "50%",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+  pointerEvents: "none",
+};
+
+const KnowledgeNodeVis = memo(function KnowledgeNodeVis({ data, selected }: NodeProps<NodeData>) {
   const { node } = data;
   const size = Math.round(6 + node.strength * 7);
   const dim = node.strength < 0.25;
 const typeRing: Record<string, string> = {
     person: "#E8A66B", organization: "#9BB8D3", case: "#D3A9C9", law: "#B7C68A",
   };
-  const ringColor = node.color || typeRing[node.type] || (node.pinned ? "#E8E6E1" : "#A8A6A1");
+  const ringColor = node.color || typeRing[node.type] || (node.pinned ? "rgb(var(--text-primary))" : "rgb(var(--border))");
   return (
     <div className="kg-node flex flex-col items-center select-none group" data-node-id={node.id}>
       <div className="relative">
+        <Handle type="target" position={Position.Top} isConnectable={false} style={HANDLE_STYLE} />
+        <Handle type="source" position={Position.Bottom} isConnectable={false} style={HANDLE_STYLE} />
         <div
           style={{
             width: size * 2,
             height: size * 2,
             borderColor: ringColor,
             boxShadow: selected
-              ? "0 0 0 1px #E8E6E1, 0 0 18px rgba(232,230,225,0.35)"
+              ? "0 0 0 1px rgb(var(--text-primary)), 0 0 18px rgb(var(--text-primary) / 0.25)"
               : node.pinned
-                ? "0 0 0 1px #E8E6E1, 0 0 10px rgba(232,230,225,0.18)"
-                : "0 0 0 1px rgba(168,166,161,0.25)",
+                ? "0 0 0 1px rgb(var(--text-primary)), 0 0 10px rgb(var(--text-primary) / 0.14)"
+                : "0 0 0 1px rgb(var(--border) / 0.6)",
           }}
           className={cn(
             "rounded-full border bg-bone/[0.06] transition-all duration-150 group-hover:bg-bone/[0.12]",
@@ -56,14 +76,15 @@ const typeRing: Record<string, string> = {
         </span>
         {(node.favorite || node.pinned) && (
           <span className="absolute -top-2 -right-2 text-bone/60">
-            <Star size={8} fill={node.favorite ? "#E8E6E1" : "none"} />
+            <Star size={8} fill={node.favorite ? "rgb(var(--text-primary))" : "none"} />
           </span>
         )}
       </div>
       <span
+        title={node.label}
         className={cn(
-          "kg-label mt-1 font-sans text-[10px] leading-tight text-center transition-colors max-w-[110px] truncate",
-          selected ? "text-bone" : dim ? "text-muted/40" : "text-muted/80",
+          "kg-label mt-1 max-w-[92px] truncate px-0.5 text-center font-sans text-[10px] leading-tight transition-colors",
+          selected ? "text-bone" : dim ? "text-faint" : "text-muted",
           "group-hover:text-bone",
         )}
       >
@@ -71,9 +92,10 @@ const typeRing: Record<string, string> = {
       </span>
     </div>
   );
-}
+});
 
 const nodeTypes = { knowledge: KnowledgeNodeVis };
+const defaultEdgeOptions = { type: "default" };
 
 interface KnowledgeCanvasProps {
   graph: KnowledgeGraphData;
@@ -123,7 +145,7 @@ function GraphFlow({ graph, selectedId, onSelect, anchorId, timelineMode, learni
           type: "default",
           label: isSel ? KNOWLEDGE_EDGE_LABELS[e.type] : undefined,
           style: {
-            stroke: isSel ? "rgba(232,230,225,0.4)" : "rgba(232,230,225,0.12)",
+            stroke: isSel ? "rgb(var(--text-primary) / 0.5)" : "rgb(var(--text-primary) / 0.16)",
             strokeWidth: isSel ? 1.4 : 1,
             ...(learningMode ? { strokeDasharray: "3 3", opacity: 0.5 } : {}),
           },
@@ -142,13 +164,18 @@ function GraphFlow({ graph, selectedId, onSelect, anchorId, timelineMode, learni
     }
   }, [navAnchor, getNodes, resolvedLayout.positions]);
 
+  // A blind timer can fire before the canvas has been measured, at which point React Flow's
+  // fitView returns early (width/height are still 0) and the graph stays clipped at the origin.
+  // Wait until every node has been measured, then fit — and re-fit whenever the set changes.
+  const nodesInitialized = useNodesInitialized();
+  const lastFittedCount = useRef(-1);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (getNodes().length > 0) fitView({ padding: 0.18 });
-    }, 40);
+    if (!nodesInitialized) return;
+    if (lastFittedCount.current === flowNodes.length) return;
+    lastFittedCount.current = flowNodes.length;
+    const timer = setTimeout(() => fitView({ padding: 0.18, maxZoom: 1.5 }), 40);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowNodes.length]);
+  }, [nodesInitialized, flowNodes.length, fitView]);
 
   const onNodeClick = useCallback((_: unknown, node: Node<NodeData>) => {
     onSelect(node.id);
@@ -159,9 +186,12 @@ function GraphFlow({ graph, selectedId, onSelect, anchorId, timelineMode, learni
     onSelect(null);
   }, [onSelect]);
 
-  const selectedEdgeIds = selectedId
-    ? new Set(graph.edges.filter((e) => e.sourceId === selectedId || e.targetId === selectedId).map((e) => e.id))
-    : new Set<string>();
+  const selectedEdgeIds = useMemo(
+    () => (selectedId
+      ? new Set(graph.edges.filter((e) => e.sourceId === selectedId || e.targetId === selectedId).map((e) => e.id))
+      : new Set<string>()),
+    [graph.edges, selectedId],
+  );
 
   return (
     <div className="absolute inset-0" onMouseDown={handleBackdrop}>
@@ -181,9 +211,9 @@ function GraphFlow({ graph, selectedId, onSelect, anchorId, timelineMode, learni
         panOnScroll
         zoomOnDoubleClick={false}
         className="bg-transparent"
-        defaultEdgeOptions={{ type: "default" }}
+        defaultEdgeOptions={defaultEdgeOptions}
       >
-        <Background color="rgba(232,230,225,0.035)" gap={36} size={0.6} />
+        <Background color="rgb(var(--text-primary) / 0.05)" gap={36} size={0.6} />
       </ReactFlow>
       {selectedId && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-background/90 backdrop-blur px-3 py-1.5 rounded-sm border border-border font-mono text-2xs text-muted shadow-glow">

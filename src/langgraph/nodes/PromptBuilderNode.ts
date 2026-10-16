@@ -1,10 +1,10 @@
 import type { GraphState } from "../types";
 import { log } from "../logger";
+import { EVIDENCE_WINDOW, formatLocator } from "../../pipeline/grounding";
 
 const MAX_DOCUMENT_CHARS = 40000;
 const MAX_KNOWLEDGE_CHARS = 8000;
 const MAX_MEMORY_CHARS = 4000;
-const MAX_EVIDENCE_CHUNKS = 15;
 const MAX_HISTORY_MESSAGES = 6;
 const MAX_HISTORY_MESSAGE_CHARS = 600;
 
@@ -108,8 +108,19 @@ export async function PromptBuilderNode(state: GraphState): Promise<Partial<Grap
 
   const evidence = state.retrievedChunks || [];
   if (evidence.length > 0) {
-    const evidenceLines = evidence.slice(0, MAX_EVIDENCE_CHUNKS).map((c, i) => `[${i + 1}] <source: ${c.source}> ${c.text.slice(0, 500)}`);
-    parts.push(`RETRIEVED EVIDENCE (ground your factual claims in these where possible, and cite the source name inline e.g. (per ${evidence[0].source})):\n${evidenceLines.join("\n")}`);
+    // The marker numbers here are the contract the evaluation stage checks: a
+    // cited `[n]` must resolve to entry n of this list. The model is told to use
+    // the numbers rather than the source name, because a source name cannot be
+    // verified and a number can.
+    const evidenceLines = evidence.slice(0, EVIDENCE_WINDOW).map((chunk, index) => {
+      const where = formatLocator(chunk.location);
+      return `[${index + 1}] (${where}) ${chunk.text.slice(0, 500)}`;
+    });
+    parts.push(
+      `RETRIEVED EVIDENCE (ground every factual claim in these, and cite the bracketed marker inline — e.g. [1] or [2,4]. ` +
+        `Use only markers that appear below; do not invent marker numbers, and do not cite a marker for a claim it does not support.):\n` +
+        evidenceLines.join("\n"),
+    );
   }
 
   const outputStructure = `OUTPUT STRUCTURE:
@@ -139,7 +150,7 @@ Structure your response according to the OUTPUT STRUCTURE.
 Follow all QUALITY RULES.
 ${subject !== "general" ? `You are teaching ${subject.replace(/-/g, " ")}. Ensure accuracy for this domain.` : ""}
 ${state.documentText ? `CRITICAL: An uploaded document is the topic. Teach its contents. Do not treat the user's typed message as the subject.` : ""}
-${(state.retrievedChunks || []).length > 0 ? `GROUNDING RULE: When RETRIEVED EVIDENCE is present, base factual claims on it and cite the source name inline where used. Never invent specifics that contradict the retrieved evidence; if evidence is missing, say so and label the point as inferred.` : ""}
+${(state.retrievedChunks || []).length > 0 ? `GROUNDING RULE: When RETRIEVED EVIDENCE is present, base factual claims on it and cite the bracketed marker inline after the sentence it supports. Never invent specifics that contradict the retrieved evidence; if evidence is missing, say so and label the point as inferred.` : ""}
 ${state.memoryContext ? "CONTINUITY RULE: This session has prior research in this workspace (RESEARCH MEMORY + PREVIOUS EXCHANGE). Build on it, avoid repeating what was already covered, and explicitly connect answers to earlier topics when the query references them." : ""}`;
 
   const userPrompt = `${state.documentText ? `--- DOCUMENT CONTENT ---\n${truncate(state.documentText, MAX_DOCUMENT_CHARS, "document")}\n--- END DOCUMENT ---\n\n` : ""}Query: ${state.userPrompt}

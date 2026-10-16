@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { LogOut, MessageSquare, MoreHorizontal, Pencil, Plus, Settings as SettingsIcon, Trash2 } from "lucide-react";
 import { useWorkspaceStore, workspaceStore } from "../../stores/use-workspace";
 import { useContextMenu } from "../app/ContextMenu";
+import { Button } from "../ui/button";
+import { fieldAppearance } from "../../lib/field-styles";
 import { cn } from "../../lib/utils";
 
 interface SimpleSidebarProps {
@@ -9,6 +11,21 @@ interface SimpleSidebarProps {
   onExit: () => void;
   onDeleteChat: (tabId: string) => void;
   onDeleteWorkspace: (workspaceId: string) => void;
+}
+
+/** Compact relative time for the recents list — derived from the real stored
+ *  timestamps, no invented activity. */
+function formatRelativeTime(ts: number): string {
+  const minutes = Math.floor((Date.now() - ts) / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w`;
+  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 export function SimpleSidebar({ onOpenSettings, onExit, onDeleteChat, onDeleteWorkspace }: SimpleSidebarProps) {
@@ -72,20 +89,18 @@ export function SimpleSidebar({ onOpenSettings, onExit, onDeleteChat, onDeleteWo
   };
 
   return (
-    <aside className="flex h-full w-full flex-col bg-sidebar/40 border-r border-border overflow-hidden">
-      <div className="flex-1 overflow-y-auto scrollbar-hide py-3">
-        <button
-          onClick={newChat}
-          className="mx-3 flex w-[calc(100%-1.5rem)] items-center gap-2 px-4 py-2.5 rounded-md bg-accent text-surface font-sans text-sm font-medium transition-colors hover:bg-accent/90"
-          title="New chat (Ctrl+N)"
-        >
-          <Plus size={15} /> New Chat
-        </button>
+    <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-sidebar/40">
+      <div className="scrollbar-hide flex-1 overflow-y-auto py-3">
+        <div className="px-3">
+          <Button onClick={newChat} className="w-full gap-2" title="New chat (Ctrl+N)" aria-label="New chat (Ctrl+N)">
+            <Plus size={15} /> New Chat
+          </Button>
+        </div>
 
-        <div className="px-3 pt-5 pb-1">
+        <div className="px-3 pb-1 pt-5">
           <span className="font-mono text-2xs uppercase tracking-ultra text-muted">Recent Chats</span>
         </div>
-        <div className="space-y-px px-2">
+        <div className="space-y-px px-2" role="list">
           {chats.map((tab) => (
             <ChatRow
               key={tab.id}
@@ -99,17 +114,18 @@ export function SimpleSidebar({ onOpenSettings, onExit, onDeleteChat, onDeleteWo
             />
           ))}
           {chats.length === 0 && (
-            <div className="px-2 py-1.5 font-sans text-xs text-muted/60">No chats yet — start one above.</div>
+            <div className="px-2 py-1.5 font-sans text-xs text-faint">No chats yet — start one above.</div>
           )}
         </div>
 
-        <div className="px-3 pt-5 pb-1 flex items-center justify-between">
+        <div className="flex items-center justify-between px-3 pb-1 pt-5">
           <span className="font-mono text-2xs uppercase tracking-ultra text-muted">Workspaces</span>
           <button
             onClick={() => setCreatingWorkspace((v) => !v)}
-            className="p-1 rounded-sm text-muted hover:text-bone hover:bg-bone/5"
+            className="rounded-sm p-1 text-muted transition-colors hover:bg-bone/5 hover:text-bone focus-ring"
             title="New workspace"
             aria-label="New workspace"
+            aria-expanded={creatingWorkspace}
           >
             <Plus size={12} />
           </button>
@@ -127,20 +143,22 @@ export function SimpleSidebar({ onOpenSettings, onExit, onDeleteChat, onDeleteWo
                   if (e.key === "Escape") { setCreatingWorkspace(false); setWorkspaceName(""); }
                 }}
                 placeholder="New workspace"
-                className="min-w-0 flex-1 bg-bone/[0.04] border border-border px-2.5 py-1.5 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-muted/40"
+                aria-label="New workspace name"
+                className={cn(fieldAppearance, "min-w-0 flex-1 px-2.5 py-1.5 text-xs")}
               />
-              <button
+              <Button
+                size="sm"
                 onClick={createWorkspace}
                 disabled={!workspaceName.trim()}
-                className="px-2.5 py-1.5 rounded-sm bg-accent text-surface font-sans text-xs font-medium disabled:opacity-40"
+                className="shrink-0 px-2.5"
               >
                 Create
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
-        <div className="space-y-px px-2">
+        <div className="space-y-px px-2" role="list">
           {workspaces.map((w) => (
             <WorkspaceRow
               key={w.id}
@@ -156,45 +174,79 @@ export function SimpleSidebar({ onOpenSettings, onExit, onDeleteChat, onDeleteWo
             />
           ))}
           {workspaces.length === 0 && (
-            <div className="px-2 py-1.5 font-sans text-xs text-muted/60">No workspaces yet.</div>
+            <div className="px-2 py-1.5 font-sans text-xs text-faint">No workspaces yet.</div>
           )}
         </div>
 
         {activeWorkspace && (
           <div className="px-3 pt-4">
-            <p className="font-sans text-2xs text-muted/70 leading-relaxed">
-              Working in <span className="text-bone/70">{activeWorkspace.name}</span>
+            <p className="font-sans text-2xs leading-relaxed text-faint">
+              Working in <span className="text-bone">{activeWorkspace.name}</span>
             </p>
           </div>
         )}
       </div>
 
-      <div className="shrink-0 border-t border-border p-2 space-y-px">
+      <div className="shrink-0 space-y-px border-t border-border p-2">
         <button
           onClick={() => workspaceStore.setPrefs({ developerMode: true })}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-sans text-xs text-bone/70 hover:text-bone hover:bg-bone/5 transition-colors text-left"
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left font-sans text-xs text-bone transition-colors hover:bg-bone/5 focus-ring"
           title="Switch to Developer Mode — model controls, graph, canvas, and diagnostics"
         >
-          <MoreHorizontal size={13} className="text-muted shrink-0" />
+          <MoreHorizontal size={13} className="shrink-0" aria-hidden="true" />
           Developer Mode
         </button>
         <button
           onClick={onOpenSettings}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-sans text-xs text-bone/70 hover:text-bone hover:bg-bone/5 transition-colors text-left"
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left font-sans text-xs text-bone transition-colors hover:bg-bone/5 focus-ring"
         >
-          <SettingsIcon size={13} className="text-muted shrink-0" />
+          <SettingsIcon size={13} className="shrink-0" aria-hidden="true" />
           Settings
         </button>
         <button
           onClick={onExit}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-sans text-xs text-bone/50 hover:text-bone hover:bg-bone/5 transition-colors text-left"
+          className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left font-sans text-xs text-faint transition-colors hover:bg-bone/5 hover:text-bone focus-ring"
         >
-          <LogOut size={13} className="text-muted shrink-0" />
+          <LogOut size={13} className="shrink-0" aria-hidden="true" />
           Exit to landing page
         </button>
       </div>
       {menu}
     </aside>
+  );
+}
+
+/** Shared row chrome: the active row carries an accent rail so the current
+ *  context is legible without relying on a low-contrast background wash. */
+function rowClass(active: boolean) {
+  return cn(
+    "group relative flex items-center rounded-md transition-colors",
+    active ? "bg-bone/[0.07] text-bone" : "text-muted hover:bg-bone/[0.04] hover:text-bone",
+  );
+}
+
+function ActiveRail() {
+  return (
+    <span
+      className="absolute left-0 top-1/2 h-3.5 w-[2px] -translate-y-1/2 rounded-full bg-accent"
+      aria-hidden="true"
+    />
+  );
+}
+
+function RowOptionsButton({ label, onClick }: { label: string; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(e);
+      }}
+      className="hover-reveal mr-0.5 shrink-0 rounded-sm p-0.5 text-muted transition-colors hover:bg-bone/10 hover:text-bone focus-ring"
+      aria-label={label}
+      title={label}
+    >
+      <MoreHorizontal size={12} />
+    </button>
   );
 }
 
@@ -209,43 +261,59 @@ function ChatRow(props: {
 }) {
   const tab = workspaceStore.getState().tabs.find((t) => t.id === props.tabId);
   if (!tab) return null;
+
+  const renamed = props.renaming !== null;
+  const stamp = tab.lastOpenedAt ?? tab.updatedAt;
+
   return (
-    <div
-      onClick={() => workspaceStore.setActiveTab(tab.id)}
-      onContextMenu={props.onContextMenu}
-      className={cn(
-        "group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-default transition-colors",
-        props.active ? "bg-bone/8 text-bone" : "text-muted hover:text-bone hover:bg-bone/5",
-      )}
-      title={tab.title}
-    >
-      <MessageSquare size={12} className="shrink-0 opacity-60" />
-      {props.renaming !== null ? (
-        <input
-          autoFocus
-          value={props.renaming}
-          onChange={(e) => props.onRename(e.target.value)}
-          onBlur={props.onCommit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") props.onCommit();
-            if (e.key === "Escape") props.onCancel();
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full bg-transparent font-sans text-xs outline-none border border-accent/40 rounded-sm px-1 text-bone"
-        />
+    <div role="listitem" className={rowClass(props.active)}>
+      {props.active && <ActiveRail />}
+      {/* The row body is a real button, not a clickable div, and the options
+          trigger is a sibling rather than a nested button (which would be
+          invalid HTML and unreachable by keyboard). While renaming, the input
+          replaces the button outright — interactive content cannot nest. */}
+      {renamed ? (
+        <div className="flex min-w-0 flex-1 items-center gap-2 py-1 pl-2.5 pr-1">
+          <MessageSquare size={12} className="shrink-0 opacity-60" aria-hidden="true" />
+          <input
+            autoFocus
+            value={props.renaming ?? ""}
+            onChange={(e) => props.onRename(e.target.value)}
+            onBlur={props.onCommit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") props.onCommit();
+              if (e.key === "Escape") props.onCancel();
+            }}
+            aria-label="Rename chat"
+            className="w-full min-w-0 rounded-sm border border-accent/40 bg-transparent px-1 font-sans text-xs text-bone outline-none focus:ring-1 focus:ring-accent/40"
+          />
+        </div>
       ) : (
-        <span className="flex-1 min-w-0 font-sans text-xs truncate">{tab.title}</span>
+        <button
+          type="button"
+          onClick={() => workspaceStore.setActiveTab(tab.id)}
+          onContextMenu={props.onContextMenu}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-2.5 pr-1 text-left focus-ring"
+          title={tab.title}
+          aria-current={props.active ? "true" : undefined}
+        >
+          <MessageSquare
+            size={12}
+            className={cn("shrink-0", props.active ? "text-accent" : "opacity-60")}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate font-sans text-xs">{tab.title}</span>
+        </button>
       )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onContextMenu(e);
-        }}
-        className="opacity-0 group-hover:opacity-100 p-0.5 rounded-sm text-muted hover:text-bone hover:bg-bone/10 shrink-0"
-        aria-label="Chat options"
-      >
-        <MoreHorizontal size={12} />
-      </button>
+      {!renamed && (
+        <time
+          dateTime={new Date(stamp).toISOString()}
+          className="hover-conceal mr-1 shrink-0 font-mono text-2xs text-faint"
+        >
+          {formatRelativeTime(stamp)}
+        </time>
+      )}
+      <RowOptionsButton label={`Options for ${tab.title}`} onClick={props.onContextMenu} />
     </div>
   );
 }
@@ -261,44 +329,41 @@ function WorkspaceRow(props: {
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }) {
+  const renamed = props.renaming !== null;
+
   return (
-    <div
-      onClick={props.onClick}
-      onContextMenu={props.onContextMenu}
-      className={cn(
-        "group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-default transition-colors",
-        props.active ? "bg-bone/8 text-bone" : "text-muted hover:text-bone hover:bg-bone/5",
-      )}
-    >
-      {props.renaming !== null ? (
-        <input
-          autoFocus
-          value={props.renaming}
-          onChange={(e) => props.onRename(e.target.value)}
-          onBlur={props.onCommit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") props.onCommit();
-            if (e.key === "Escape") props.onCancel();
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="w-full bg-transparent font-sans text-xs outline-none border border-accent/40 rounded-sm px-1 text-bone"
-        />
+    <div role="listitem" className={rowClass(props.active)}>
+      {props.active && <ActiveRail />}
+      {renamed ? (
+        <div className="flex min-w-0 flex-1 items-center gap-2 py-1 pl-2.5 pr-1">
+          <input
+            autoFocus
+            value={props.renaming ?? ""}
+            onChange={(e) => props.onRename(e.target.value)}
+            onBlur={props.onCommit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") props.onCommit();
+              if (e.key === "Escape") props.onCancel();
+            }}
+            aria-label="Rename workspace"
+            className="w-full min-w-0 rounded-sm border border-accent/40 bg-transparent px-1 font-sans text-xs text-bone outline-none focus:ring-1 focus:ring-accent/40"
+          />
+        </div>
       ) : (
-        <>
-          <span className="flex-1 min-w-0 font-sans text-xs truncate">{props.name}</span>
-          <span className="font-mono text-2xs text-muted/50 shrink-0">{props.chatCount}</span>
-        </>
+        <button
+          type="button"
+          onClick={props.onClick}
+          onContextMenu={props.onContextMenu}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-2.5 pr-1 text-left focus-ring"
+          aria-current={props.active ? "true" : undefined}
+        >
+          <span className="min-w-0 flex-1 truncate font-sans text-xs">{props.name}</span>
+          <span className="shrink-0 font-mono text-2xs text-faint" aria-label={`${props.chatCount} chats`}>
+            {props.chatCount}
+          </span>
+        </button>
       )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          props.onContextMenu(e);
-        }}
-        className="opacity-0 group-hover:opacity-100 p-0.5 rounded-sm text-muted hover:text-bone hover:bg-bone/10 shrink-0"
-        aria-label="Workspace options"
-      >
-        <MoreHorizontal size={12} />
-      </button>
+      <RowOptionsButton label={`Options for ${props.name}`} onClick={props.onContextMenu} />
     </div>
   );
 }

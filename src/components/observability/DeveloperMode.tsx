@@ -4,12 +4,34 @@ import { LAST_EVENTS, onPipelineEvent, stageNameFor } from "../../pipeline/trace
 import type { PipelineEvent } from "../../pipeline/trace";
 import { useWorkspaceStore } from "../../stores/use-workspace";
 import { cn } from "../../lib/utils";
+import { ToolsPanel } from "./ToolsPanel";
+import { WebResearchPanel } from "../research/WebResearchPanel";
+import { TasksPanel } from "./TasksPanel";
+import { IntegrityPanel } from "./IntegrityPanel";
+import { ProjectsPanel } from "./ProjectsPanel";
+import { ControlPanel } from "./ControlPanel";
 
 const STAGE_ORDER = [
   "intent", "subject", "router", "document", "profile", "gaps",
   "retrieval", "scoring", "prompt", "openrouter", "quality",
   "evaluation", "formatting", "report", "response",
 ];
+
+/**
+ * Which provider produced the run's answer, taken from the run's own telemetry
+ * rather than from the current preference — a run labelled local must stay
+ * labelled local even after the setting changes.
+ */
+function providerCell(telemetry: { provider?: string; providerFallback?: boolean } | null | undefined): string {
+  if (!telemetry?.provider) return "—";
+  const label =
+    telemetry.provider === "ollama"
+      ? "Local (Ollama)"
+      : telemetry.provider === "openrouter"
+        ? "Remote (OpenRouter)"
+        : telemetry.provider;
+  return telemetry.providerFallback ? `${label} · fallback` : label;
+}
 
 export function DeveloperMode() {
   const state = useWorkspaceStore();
@@ -42,7 +64,7 @@ export function DeveloperMode() {
         <div className="mb-6">
           <h1 className="font-display text-2xl font-semibold text-bone">Developer Mode</h1>
           <p className="font-sans text-xs text-muted mt-1">
-            Live pipeline feed: Question → Retrieval → Scoring → Prompt → OpenRouter → Evaluation → Formatting → Response.
+            Live pipeline feed: Question → Retrieval → Scoring → Prompt → Generation → Evaluation → Formatting → Response.
           </p>
         </div>
 
@@ -67,6 +89,7 @@ export function DeveloperMode() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
                   ["Model", intel.telemetry?.model || "—"],
+                  ["Provider", providerCell(intel.telemetry)],
                   ["Total", intel.telemetry?.totalMs != null ? `${Math.round(intel.telemetry.totalMs)}ms` : "—"],
                   ["Retrieval", intel.telemetry?.retrievalMs != null ? `${Math.round(intel.telemetry.retrievalMs)}ms` : "—"],
                   ["Generation", intel.telemetry?.generationMs != null ? `${Math.round(intel.telemetry.generationMs)}ms` : "—"],
@@ -150,6 +173,30 @@ export function DeveloperMode() {
               </ul>
             )}
           </div>
+        </div>
+
+        <div className="mt-6">
+          <ToolsPanel />
+        </div>
+
+        <div className="mt-6">
+          <WebResearchPanel />
+        </div>
+
+        <div className="mt-6">
+          <TasksPanel />
+        </div>
+
+        <div className="mt-6">
+          <IntegrityPanel />
+        </div>
+
+        <div className="mt-6">
+          <ProjectsPanel />
+        </div>
+
+        <div className="mt-6">
+          <ControlPanel />
         </div>
 
         <div className="mt-6">

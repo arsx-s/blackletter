@@ -1,11 +1,15 @@
 import {
   Activity, Archive, Brain, Copy, History, Layers, Plus, RotateCw, Settings, Globe, BookOpen, Sliders, Trash2, Key, ExternalLink,
 } from "lucide-react";
+import { useState } from "react";
 import { Toggle } from "../ui/toggle";
 import { workspaceStore } from "../../stores/workspace-store";
 import { useWorkspaceStore } from "../../stores/use-workspace";
 import { MODEL_CATEGORIES, modelForCategory, categoryForModel, type ModelCategory } from "../../config/models";
 import { openExternalUrl } from "../../lib/electron";
+import { getRelayToken, setRelayToken } from "../../lib/relay-auth";
+import { MemoryPanel } from "../memory/MemoryPanel";
+import { LocalProviderPanel } from "./LocalProviderPanel";
 
 function fmtTime(ts: number): string {
   return new Date(ts).toLocaleString();
@@ -14,9 +18,10 @@ function fmtTime(ts: number): string {
 export function SettingsView() {
   const state = useWorkspaceStore();
   const prefs = state.prefs;
+  const [relayToken, setRelayTokenValue] = useState(() => getRelayToken());
   const workspaceId = state.activeWorkspaceId;
   const activeTab = state.tabs.find((t) => t.id === state.activeTabId) ?? null;
-  const memory = workspaceStore.getMemory(workspaceId);
+  const workspaceName = state.workspaces.find((w) => w.id === workspaceId)?.name ?? "this workspace";
   const snapshots = workspaceStore.snapshotsForWorkspace(workspaceId, "snapshot");
   const templates = workspaceStore.snapshotsForWorkspace(workspaceId, "template");
   const history = activeTab?.history ?? [];
@@ -24,7 +29,6 @@ export function SettingsView() {
   const sectionClass = "bg-background border border-border/70 rounded-xl p-5";
   const labelClass = "font-sans text-sm font-medium text-bone/80";
   const descClass = "font-sans text-xs text-muted mt-0.5";
-  const rowClass = "flex items-center justify-between gap-4 py-2";
 
   return (
     <div className="h-full overflow-y-auto p-6 lg:p-8 max-w-2xl">
@@ -133,6 +137,50 @@ export function SettingsView() {
                 </button>
               </div>
             </div>
+            <div className="border-t border-border/60 pt-3">
+              <p className="font-sans text-sm">Local model provider</p>
+              <p className={descClass + " mt-1 leading-relaxed"}>
+                Run inference on this machine through a local runtime (Ollama). Off by default; nothing is downloaded,
+                pulled, or started from here.
+              </p>
+              <div className="mt-3">
+                <LocalProviderPanel />
+              </div>
+            </div>
+            <div className="border-t border-border/60 pt-3">
+              <p className="font-sans text-sm">Model relay access</p>
+              <p className={descClass + " mt-1 leading-relaxed"}>
+                Only needed when the relay was started with{" "}
+                <span className="font-mono text-2xs">BLACKLETTER_RELAY_TOKEN</span> set. Without it, a secured relay
+                refuses every request with an “unauthorized” notice. Stored in this browser only and sent as a bearer
+                credential — it is not a provider API key.
+              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <input
+                  type="password"
+                  value={relayToken}
+                  onChange={(e) => {
+                    setRelayTokenValue(e.target.value);
+                    setRelayToken(e.target.value);
+                  }}
+                  placeholder="Relay token (leave empty when not required)"
+                  aria-label="Model relay token"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="min-w-0 flex-1 bg-bone/[0.04] border border-border rounded px-2.5 py-1.5 font-mono text-xs outline-none focus:border-accent/40 placeholder:text-faint"
+                />
+                <button
+                  onClick={() => {
+                    setRelayTokenValue("");
+                    setRelayToken("");
+                  }}
+                  disabled={!relayToken}
+                  className="shrink-0 px-3 py-1.5 rounded-sm border border-border hover:border-accent/40 disabled:opacity-40 disabled:hover:border-border font-sans text-xs text-bone/80 transition-colors"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -176,22 +224,15 @@ export function SettingsView() {
         <div className={sectionClass}>
           <div className="flex items-center gap-3 mb-4">
             <Brain size={16} className="text-muted" />
-            <p className={labelClass}>Research memory</p>
+            <p className={labelClass}>What Blackletter remembers</p>
           </div>
-          <p className={descClass + " mb-3"}>
-            BlackLetter remembers past research in this workspace — goals, concepts, gaps, and follow-ups — and uses it to continue topics across sessions.
-          </p>
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <p className="font-sans text-sm">Stored knowledge</p>
-              <p className={descClass}>{memory.entries.length} exchanges · {memory.concepts.length} concepts · {memory.gaps.length} gaps · {memory.goals.length} goals</p>
-            </div>
-            <button
-              onClick={() => { if (confirm("Clear this workspace's research memory? This cannot be undone.")) workspaceStore.clearMemory(workspaceId); }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-border font-sans text-xs text-bone/70 hover:bg-bone/5 transition-colors"
-            >
-              <Trash2 size={12} /> Clear memory
-            </button>
+          <MemoryPanel workspaceId={workspaceId} workspaceName={workspaceName} />
+        </div>
+
+        <div className={sectionClass}>
+          <div className="flex items-center gap-3 mb-4">
+            <Sliders size={16} className="text-muted" />
+            <p className={labelClass}>Development</p>
           </div>
           <div className="flex items-center justify-between py-2">
             <div>

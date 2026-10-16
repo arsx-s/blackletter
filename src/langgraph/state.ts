@@ -1,5 +1,6 @@
 import type { GraphState, LearnerProfile, KnowledgeGapResult } from "./types";
 import { Trace } from "../pipeline/trace";
+import { resolveProvider } from "../providers/selection";
 
 export function createInitialState(input: {
   prompt: string;
@@ -19,12 +20,19 @@ export function createInitialState(input: {
 }): GraphState {
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const trace = new Trace(runId);
+  // Resolved once, at the start of the run, and recorded. LLMNode replaces it
+  // with the provider that actually ran the request, so a fallback cannot be
+  // reported as a local run.
+  const resolved = resolveProvider();
   return {
     userPrompt: input.prompt,
     knowledgeContext: input.knowledgeContext || "",
     conversationHistory: input.history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
     uploadedDocuments: input.files,
     model: input.model || "",
+    provider: resolved.provider,
+    providerLocal: resolved.provider === "ollama",
+    providerFallback: false,
     runId,
     workspaceId: input.workspaceId || "",
     tabId: input.tabId || "",
@@ -40,6 +48,7 @@ export function createInitialState(input: {
     documentConcepts: [],
     documentObjectives: [],
     documentError: null,
+    documentParts: [],
     intent: "teach",
     intentConfidence: 0.6,
     subject: input.subject || "general",
@@ -71,12 +80,17 @@ export function createInitialState(input: {
     faithfulness: null,
     hallucination: null,
     confidence: null,
+    groundingReport: null,
+    evidenceSources: new Map(),
     telemetry: {
       runId,
       workspaceId: input.workspaceId || "",
       tabId: input.tabId || "",
       query: input.prompt,
       model: input.model || "",
+      provider: resolved.provider,
+      local: resolved.provider === "ollama",
+      providerFallback: false,
       startedAt: Date.now(),
       finishedAt: 0,
       totalMs: 0,

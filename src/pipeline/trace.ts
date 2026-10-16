@@ -13,7 +13,7 @@ export const PIPELINE_STAGES = [
   "Retrieval",
   "Scoring",
   "Prompt",
-  "OpenRouter",
+  "Generation",
   "Evaluation",
   "Formatting",
   "Response",
@@ -29,6 +29,11 @@ export type TraceStageId =
   | "retrieval"
   | "scoring"
   | "prompt"
+  /**
+   * The generation stage. The id is historical (`openrouter` predates the local
+   * provider); its *name* is "Generation", so a run's display never claims which
+   * provider ran it when the provider layer is the thing that knows.
+   */
   | "openrouter"
   | "quality"
   | "evaluation"
@@ -55,6 +60,14 @@ export interface PipelineTelemetry {
   tabId: string;
   query: string;
   model: string;
+  /**
+   * Which provider actually produced the answer (`openrouter` or `ollama`), and
+   * whether that was local. Recorded by the provider layer, not inferred, so the
+   * UI can state where the tokens were processed.
+   */
+  provider: string;
+  local: boolean;
+  providerFallback: boolean;
   startedAt: number;
   finishedAt: number;
   totalMs: number;
@@ -181,7 +194,7 @@ export function stageNameFor(id: TraceStageId): string {
     retrieval: "Retrieval",
     scoring: "Scoring",
     prompt: "Prompt",
-    openrouter: "OpenRouter",
+    openrouter: "Generation",
     quality: "Quality",
     evaluation: "Evaluation",
     formatting: "Formatting",

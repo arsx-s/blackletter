@@ -34,7 +34,7 @@ export function Timeline({ events }: TimelineProps) {
             <div className="absolute left-[14px] top-[6px] w-[11px] h-[11px] rounded-full border-2 border-black/30 bg-ink z-10" />
             <div className="p-2.5 rounded-lg bg-black/[0.03] border border-black/8 hover:bg-black/[0.06] transition-colors">
               <div className="flex items-center gap-1.5 mb-1">
-                <span className="font-mono text-2xs font-medium text-bone/60">{event.date}</span>
+                <span className="font-mono text-2xs font-medium text-faint">{event.date}</span>
               </div>
               <p className="font-sans text-xs text-black/60 leading-relaxed line-clamp-2">
                 {event.description}

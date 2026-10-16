@@ -19,6 +19,7 @@ import { GlobalSearch } from "./GlobalSearch";
 import { NewSessionModal } from "./NewSessionModal";
 import { FloatingAiChat } from "./FloatingAiChat";
 import { DefaultShell } from "../simple/DefaultShell";
+import { AmbientBackground } from "./AmbientBackground";
 
 const ResearchWorkspace = lazy(() => import("../research/ResearchWorkspace").then((m) => ({ default: m.ResearchWorkspace })));
 const NotebookView = lazy(() => import("./NotebookView").then((m) => ({ default: m.NotebookView })));
@@ -173,7 +174,7 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
   }, []);
 
   return (
-    <div ref={shellRef} data-fontsize={state.prefs.fontSize} className="h-screen flex flex-col overflow-hidden bg-background">
+    <div ref={shellRef} data-fontsize={state.prefs.fontSize} className="relative h-screen flex flex-col overflow-hidden bg-background">
       <AnimatePresence>
         {showNamePrompt && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-bone/60 backdrop-blur-sm">
@@ -372,16 +373,19 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
           </div>
         )}
 
-        <main className="flex-1 min-w-0 min-h-0 bg-background">
-          {view === "home" ? (
-            <Suspense fallback={<ViewFallback />}>
-              {activeTab ? <ResearchWorkspace key={activeTab.id} onNewSession={() => setNewSessionOpen(true)} /> : <Dashboard userName={userName} onNewSession={() => setNewSessionOpen(true)} />}
-            </Suspense>
-          ) : view === "graph" || view === "canvas" ? (
-            <Suspense fallback={<ViewFallback />}>{renderTool()}</Suspense>
-          ) : (
-            <div className="h-full overflow-y-auto scrollbar-hide">{renderTool()}</div>
-          )}
+        <main className="relative flex-1 min-w-0 min-h-0 bg-background">
+          <AmbientBackground />
+          <div key={view} className="animate-fade-in relative z-10 h-full">
+            {view === "home" ? (
+              <Suspense fallback={<ViewFallback />}>
+                {activeTab ? <ResearchWorkspace key={activeTab.id} onNewSession={() => setNewSessionOpen(true)} /> : <Dashboard userName={userName} onNewSession={() => setNewSessionOpen(true)} />}
+              </Suspense>
+            ) : view === "graph" || view === "canvas" ? (
+              <Suspense fallback={<ViewFallback />}>{renderTool()}</Suspense>
+            ) : (
+              <div className="h-full overflow-y-auto scrollbar-hide">{renderTool()}</div>
+            )}
+          </div>
         </main>
 
         {view === "home" && activeTab && state.prefs.inspectorOpen && (
@@ -403,8 +407,11 @@ export function OperatingSystem({ onExit }: { onExit: () => void }) {
       <NewSessionModal isOpen={newSessionOpen} onClose={() => setNewSessionOpen(false)} />
         </>
       ) : (
-        <div className="flex-1 min-h-0">
-          <DefaultShell onExit={onExit} />
+        <div className="animate-fade-in relative flex-1 min-h-0">
+          <AmbientBackground />
+          <div className="relative z-10 h-full">
+            <DefaultShell onExit={onExit} />
+          </div>
         </div>
       )}
     </div>

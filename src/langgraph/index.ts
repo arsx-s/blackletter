@@ -2,7 +2,9 @@ import { createBlackLetterGraph } from "./graph";
 import { createInitialState } from "./state";
 import type { GraphRunResult, PipelineRunInput } from "./types";
 import { recordRun, recordError } from "../observability/metrics";
+import { observeProposals } from "../tools/proposals";
 import { devLog } from "../lib/dev-log";
+import { CancelledError } from "../lib/cancellation";
 
 export type { GraphState, PipelineRunInput, FormattedSection, NodeTiming } from "./types";
 
@@ -40,10 +42,12 @@ function toPipelineResult(runResult: GraphRunResult) {
     faithfulness: s.faithfulness,
     hallucination: s.hallucination,
     confidence: s.confidence,
+    groundingReport: s.groundingReport,
     intelligence: {
       confidence: s.confidence,
       faithfulness: s.faithfulness,
       hallucination: s.hallucination,
+      groundingReport: s.groundingReport,
       groundedSources: s.groundedSources,
       retrievedChunks: s.retrievedChunks,
       trace: s.trace.stages,
@@ -74,14 +78,41 @@ export async function runPipeline(input: PipelineRunInput) {
 
   devLog(`[LANGGRAPH] runPipeline: prompt="${input.prompt}", files=${(input.files || []).length}`);
 
-  const result = await graph.execute(initialState);
+  const result = await graph.execute(initialState, { signal: input.signal });
 
   devLog(`[LANGGRAPH] Execution complete: success=${result.success}, nodes=[${result.visitedNodes.join(" → ")}], total=${Object.values(result.executionTimes).reduce((a, b) => a + b, 0)}ms`);
-  if (result.error) {
+  if (result.error && !result.cancelled) {
     console.error(`[LANGGRAPH] Execution error: ${result.error}`);
   }
 
   const telemetry = result.state.telemetry;
+
+  if (result.cancelled) {
+    // A deliberate stop is not a failure: it is recorded for telemetry, but it
+    // is not written to the error log, and callers can identify it by code.
+    recordRun({
+      runId: initialState.runId,
+      at: Date.now(),
+      workspaceId: initialState.workspaceId,
+      tabId: initialState.tabId,
+      query: initialState.userPrompt.slice(0, 200),
+      model: initialState.model || "default",
+      provider: initialState.provider,
+      local: initialState.providerLocal,
+      providerFallback: initialState.providerFallback,
+      totalMs: telemetry.totalMs || result.state.trace.totalMs(),
+      retrievalMs: telemetry.retrievalMs,
+      generationMs: telemetry.generationMs,
+      tokensIn: telemetry.tokensIn,
+      tokensOut: telemetry.tokensOut,
+      confidence: null,
+      faithfulness: null,
+      retrievedChunks: result.state.retrievedChunks.length,
+      groundedSources: 0,
+      errorCode: "CANCELLED",
+    });
+    throw new CancelledError();
+  }
 
   if (!result.success && result.error) {
     const err = new Error(result.error) as Error & { code?: string };
@@ -93,6 +124,9 @@ export async function runPipeline(input: PipelineRunInput) {
       tabId: initialState.tabId,
       query: initialState.userPrompt.slice(0, 200),
       model: initialState.model || "default",
+      provider: telemetry.provider,
+      local: telemetry.local,
+      providerFallback: telemetry.providerFallback,
       totalMs: telemetry.totalMs || result.state.trace.totalMs(),
       retrievalMs: telemetry.retrievalMs,
       generationMs: telemetry.generationMs,
@@ -123,6 +157,9 @@ export async function runPipeline(input: PipelineRunInput) {
     tabId: telemetry.tabId,
     query: telemetry.query.slice(0, 200),
     model: telemetry.model || "default",
+    provider: telemetry.provider,
+    local: telemetry.local,
+    providerFallback: telemetry.providerFallback,
     totalMs: telemetry.totalMs || result.state.trace.totalMs(),
     retrievalMs: telemetry.retrievalMs,
     generationMs: telemetry.generationMs,
@@ -132,6 +169,15 @@ export async function runPipeline(input: PipelineRunInput) {
     faithfulness: telemetry.faithfulness,
     retrievedChunks: telemetry.retrievedChunks,
     groundedSources: telemetry.groundedSources,
+  });
+
+  // A model may propose a tool call. It is recorded here and **not executed**:
+  // execution is a separate, deliberate step that passes the same policy gateway
+  // as an operator-authored call. Parsing is not permission.
+  observeProposals(result.state.aiResponse, {
+    workspaceId: telemetry.workspaceId,
+    tabId: telemetry.tabId,
+    runId: telemetry.runId,
   });
 
   return toPipelineResult(result);

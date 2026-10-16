@@ -224,7 +224,7 @@ export function LeftSidebar() {
                   }}
                   onBlur={createFolder}
                   placeholder="Folder name…"
-                  className="w-full bg-bone/[0.04] border border-border px-2 py-1 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-muted/40"
+                  className="w-full bg-bone/[0.04] border border-border px-2 py-1 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-faint"
                 />
               </div>
             )}
@@ -272,7 +272,7 @@ export function LeftSidebar() {
                           onClick={() => workspaceStore.toggleFolderCollapsed(folder.id)}
                         >
                           <span className="truncate">{folder.name}</span>
-                          <span className="font-mono text-2xs text-muted/60 shrink-0">({folderTabs.length})</span>
+                          <span className="font-mono text-2xs text-faint shrink-0">({folderTabs.length})</span>
                         </button>
                       )}
                       <button
@@ -292,7 +292,7 @@ export function LeftSidebar() {
                           <TabItem key={tab.id} tabId={tab.id} active={tab.id === state.activeTabId} renaming={renaming} onRename={(v) => setRenaming({ kind: "tab", id: tab.id, value: v })} onCommit={commitRename} onCancel={() => setRenaming(null)} onContextMenu={(e) => openTabMenu(e, tab.id)} />
                         ))}
                         <div
-                          className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-muted/40 font-sans text-2xs border border-dashed border-border/40"
+                          className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-faint font-sans text-2xs border border-dashed border-border/40"
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             const docId = e.dataTransfer.getData("text/plain");
@@ -309,7 +309,7 @@ export function LeftSidebar() {
                 );
               })}
               {folders.length === 0 && !creatingFolder && (
-                <div className="px-2 py-1.5 font-sans text-2xs text-muted/50">No folders — create one to organize sessions.</div>
+                <div className="px-2 py-1.5 font-sans text-2xs text-faint">No folders — create one to organize sessions.</div>
               )}
             </div>
 
@@ -321,7 +321,7 @@ export function LeftSidebar() {
                 <TabItem key={tab.id} tabId={tab.id} active={tab.id === state.activeTabId} renaming={renaming} onRename={(v) => setRenaming({ kind: "tab", id: tab.id, value: v })} onCommit={commitRename} onCancel={() => setRenaming(null)} onContextMenu={(e) => openTabMenu(e, tab.id)} />
               ))}
               {workspaceTabs.length === 0 && (
-                <div className="px-2 py-1.5 font-sans text-2xs text-muted/50">No sessions yet.</div>
+                <div className="px-2 py-1.5 font-sans text-2xs text-faint">No sessions yet.</div>
               )}
             </div>
 
@@ -333,7 +333,7 @@ export function LeftSidebar() {
                 value={docFilter}
                 onChange={(e) => setDocFilter(e.target.value)}
                 placeholder="Filter documents…"
-                className="w-full bg-bone/[0.04] border border-border px-2 py-1 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-muted/40"
+                className="w-full bg-bone/[0.04] border border-border px-2 py-1 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-faint"
               />
             </div>
             <div className="space-y-px px-2">
@@ -369,14 +369,14 @@ export function LeftSidebar() {
                   ) : (
                     <>
                       <span className="flex-1 min-w-0 font-sans text-xs truncate">{doc.name}</span>
-                      <span className="font-mono text-2xs text-muted/50 shrink-0">{formatBytes(doc.size)}</span>
+                      <span className="font-mono text-2xs text-faint shrink-0">{formatBytes(doc.size)}</span>
                       {doc.status === "processing" && <span className="w-1.5 h-1.5 rounded-full bg-accent/50 animate-pulse shrink-0" />}
                     </>
                   )}
                 </div>
               ))}
               {documents.length === 0 && (
-                <div className="px-2 py-1.5 font-sans text-2xs text-muted/50">Upload documents from a session.</div>
+                <div className="px-2 py-1.5 font-sans text-2xs text-faint">Upload documents from a session.</div>
               )}
             </div>
 
@@ -388,14 +388,14 @@ export function LeftSidebar() {
                 value={recentFilter}
                 onChange={(e) => setRecentFilter(e.target.value)}
                 placeholder="Search recent sessions…"
-                className="w-full bg-bone/[0.04] border border-border px-2 py-1 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-muted/40"
+                className="w-full bg-bone/[0.04] border border-border px-2 py-1 font-sans text-xs outline-none focus:border-accent/50 rounded-sm placeholder:text-faint"
               />
             </div>
             <div className="space-y-px px-2 pb-2">
               {recentSessions.slice(0, 8).map((tab) => (
                 <TabItem key={tab.id} tabId={tab.id} active={tab.id === state.activeTabId} compact renaming={renaming} onRename={(v) => setRenaming({ kind: "tab", id: tab.id, value: v })} onCommit={commitRename} onCancel={() => setRenaming(null)} onContextMenu={(e) => openTabMenu(e, tab.id)} />
               ))}
-              {recentSessions.length === 0 && <div className="px-2 py-1.5 font-sans text-2xs text-muted/50">Recent sessions appear here.</div>}
+              {recentSessions.length === 0 && <div className="px-2 py-1.5 font-sans text-2xs text-faint">Recent sessions appear here.</div>}
             </div>
           </>
         )}
@@ -453,7 +453,7 @@ function WorkspaceRow(props: {
       ) : (
         <>
           <span className="flex-1 min-w-0 font-sans text-xs truncate">{props.name}</span>
-          <span className="font-mono text-2xs text-muted/50 shrink-0">{props.tabCount}</span>
+          <span className="font-mono text-2xs text-faint shrink-0">{props.tabCount}</span>
         </>
       )}
     </div>

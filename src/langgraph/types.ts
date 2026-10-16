@@ -1,5 +1,6 @@
 import type { Trace, TraceStage, PipelineTelemetry } from "../pipeline/trace";
 import type { ScoredChunk, GroundedSource, FaithfulnessResult, HallucinationResult, ConfidenceResult } from "../pipeline/scoring";
+import type { DocumentPart, GroundingReport, VerifiableSource } from "../pipeline/grounding";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -34,6 +35,16 @@ export interface GraphState {
   conversationHistory: ChatMessage[];
   uploadedDocuments: File[];
   model: string;
+  /**
+   * The provider the run is using: resolved once at run start, then replaced by
+   * the provider that actually ran, so a fallback cannot be reported as a local
+   * run.
+   */
+  provider: string;
+  /** True when the actual provider is the local runtime. */
+  providerLocal: boolean;
+  /** True when an opted-in fallback replaced the requested local run. */
+  providerFallback: boolean;
   knowledgeContext: string;
   runId: string;
   workspaceId: string;
@@ -50,6 +61,11 @@ export interface GraphState {
   documentConcepts: string[];
   documentObjectives: string[];
   documentError: string | null;
+  /**
+   * Per-file text with the section and page boundaries extraction found. This is
+   * what retrieval chunks, so a chunk can name the page it came from.
+   */
+  documentParts: DocumentPart[];
   intent: string;
   intentConfidence: number;
   subject: string;
@@ -81,6 +97,13 @@ export interface GraphState {
   faithfulness: FaithfulnessResult | null;
   hallucination: HallucinationResult | null;
   confidence: ConfidenceResult | null;
+  /** Claim attribution, citation resolution, and locator verification for this run. */
+  groundingReport: GroundingReport | null;
+  /**
+   * `documentId → text` for the strings this run's locators index. Held so the
+   * evaluation stage can re-slice every chunk from its source and confirm it.
+   */
+  evidenceSources: VerifiableSource;
   telemetry: PipelineTelemetry;
   traceStages: TraceStage[];
   error?: string;
@@ -89,7 +112,19 @@ export interface GraphState {
 
 
 
-export type GraphNode = (state: GraphState) => Promise<Partial<GraphState>>;
+/**
+ * Per-run context handed to every node.
+ *
+ * Nodes that perform network or long-running work must observe `signal` so a
+ * user cancellation reaches the underlying request. Nodes that do not are free
+ * to ignore the parameter entirely — a one-argument function remains assignable
+ * to this type.
+ */
+export interface RunContext {
+  signal?: AbortSignal;
+}
+
+export type GraphNode = (state: GraphState, ctx: RunContext) => Promise<Partial<GraphState>>;
 
 export type RouterFunction = (state: GraphState) => string;
 
@@ -108,6 +143,8 @@ export interface GraphRunResult {
   success: boolean;
   error?: string;
   errorCode?: string;
+  /** True when the run stopped because the operator cancelled it. */
+  cancelled?: boolean;
 }
 
 export interface NodeTiming {
@@ -134,4 +171,6 @@ export interface PipelineRunInput {
   tabId?: string;
   memoryContext?: string;
   canvasContext?: string;
+  /** Operator-owned cancellation for the whole run. */
+  signal?: AbortSignal;
 }

@@ -19,10 +19,15 @@
     --text-primary: 50 45 41;
     --text-secondary: 50 45 41;
     --text-muted: 50 45 41;
+    /* Tertiary/annotation text. Deliberately a real colour rather than
+       `--text-muted` at reduced opacity: 50 45 41 at 40–50% alpha composites to
+       ~2.8:1 on `--background` and fails WCAG AA. This value holds ≥5:1. */
+    --text-faint: 104 97 88;
     --accent: 114 56 61;
     --accent-hover: 90 44 48;
     --accent-soft: 114 56 61;
     --border: 172 156 141;
+    --border-strong: 140 124 108;
     --shadow-color: 50 45 41;
     --bl-font: 0.875rem;
     --bl-code: 0.75rem;
@@ -94,6 +99,30 @@
   .surface-glass { background-color: rgb(var(--surface) / 0.8); backdrop-filter: blur(20px); border: 1px solid rgb(var(--border)); }
   .surface-glass-strong { background-color: rgb(var(--surface) / 0.9); backdrop-filter: blur(40px); border: 1px solid rgb(var(--border)); }
 
+  /* Layered panel: a 1px top highlight reads as light catching the upper edge,
+     then a tight contact shadow and a wide soft one establish two planes of
+     depth. Used where content genuinely sits above the page rather than for
+     decoration — menus, popovers, floating composers. */
+  .surface-panel {
+    background-color: rgb(var(--background));
+    border: 1px solid rgb(var(--border));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      0 1px 2px rgb(var(--shadow-color) / 0.06),
+      0 12px 32px -12px rgb(var(--shadow-color) / 0.18);
+  }
+
+  /* Menu/popover elevation — one step below `.surface-panel`, for transient
+     overlays anchored to a control. */
+  .surface-popover {
+    background-color: rgb(var(--background));
+    border: 1px solid rgb(var(--border));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.5),
+      0 2px 6px rgb(var(--shadow-color) / 0.08),
+      0 16px 40px -16px rgb(var(--shadow-color) / 0.22);
+  }
+
   .text-hero { @apply font-display text-display font-black leading-[0.85] tracking-tightest; }
   .text-display { @apply font-display text-7xl font-black tracking-tighter leading-[0.9]; }
   .text-h1 { @apply font-display text-5xl font-bold tracking-tight leading-[1.05]; }
@@ -107,6 +136,29 @@
   .text-caption { @apply font-sans text-xs leading-relaxed; color: rgb(var(--text-muted)); }
   .text-micro { @apply font-mono text-2xs uppercase tracking-ultra; color: rgb(var(--text-muted)); }
   .text-label { @apply font-sans text-xs font-medium; color: rgb(var(--text-secondary)); }
+  .text-faint { @apply font-sans text-xs; color: rgb(var(--text-faint)); }
+  .text-annotation { @apply font-mono text-2xs uppercase tracking-ultra; color: rgb(var(--text-faint)); }
+
+  /* Hover-reveal affordance for row actions. Hidden until its row is hovered or
+     something inside it takes keyboard focus — but never hidden on touch, which
+     has no hover state and would otherwise lose the control entirely. Paired with
+     `.hover-conceal` for metadata that yields its space to the revealed control. */
+  .hover-reveal { opacity: 1; }
+  /* Touch devices keep the action permanently visible, so the metadata it would
+     compete with stands down entirely. */
+  .hover-conceal { display: none; }
+  @media (hover: hover) {
+    .hover-reveal { opacity: 0; }
+    .hover-conceal { display: inline; opacity: 1; }
+    .group:hover .hover-reveal,
+    .group:focus-within .hover-reveal { opacity: 1; }
+    .group:hover .hover-conceal,
+    .group:focus-within .hover-conceal { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .hover-reveal,
+    .hover-conceal { transition: opacity 150ms ease-out; }
+  }
 
   .interactive-surface { @apply transition-all duration-150 ease-out cursor-pointer; }
   .interactive-surface:hover { background-color: rgb(var(--text-primary) / 0.04); }
