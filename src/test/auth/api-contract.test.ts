@@ -78,4 +78,21 @@ describe("frontend → /api/chat auth contract", () => {
       for await (const _ of streamOpenRouter("hi")) { /* drain */ }
     }).rejects.toMatchObject({ code: "NO_KEY" });
   });
+
+  it("preserves hosted relay setup errors without retrying or exposing the raw body", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ error: { code: "RELAY_AUTH_NOT_CONFIGURED", message: "The hosted relay is not configured with an access token." } }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      ));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(async () => {
+      for await (const _ of streamOpenRouter("hi")) { /* drain */ }
+    }).rejects.toMatchObject({
+      code: "RELAY_AUTH_NOT_CONFIGURED",
+      message: expect.stringContaining("Workshop → Model relay access"),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

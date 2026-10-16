@@ -100,7 +100,16 @@ export async function* streamOpenRouter(
         }
 
         if (response.status >= 500) {
-          lastError = makeError("SERVER", `Server error (HTTP ${response.status}): ${errorBody.slice(0, 200)}`);
+          const parsed = parseJsonSafe(errorBody);
+          const relayError = parsed?.error as { code?: unknown } | undefined;
+          if (response.status === 503 && relayError?.code === "RELAY_AUTH_NOT_CONFIGURED") {
+            throw makeError(
+              "RELAY_AUTH_NOT_CONFIGURED",
+              "The hosted relay needs BLACKLETTER_RELAY_TOKEN configured on the server. Redeploy after setting it, then enter the matching token in Workshop → Model relay access.",
+            );
+          }
+          // Never surface a raw 5xx body: it can contain upstream diagnostics.
+          lastError = makeError("SERVER", `Server error (HTTP ${response.status}).`);
           continue;
         }
 
