@@ -150,10 +150,10 @@ export function SettingsView() {
             <div className="border-t border-border/60 pt-3">
               <p className="font-sans text-sm">Model relay access</p>
               <p className={descClass + " mt-1 leading-relaxed"}>
-                Only needed when the relay was started with{" "}
-                <span className="font-mono text-2xs">BLACKLETTER_RELAY_TOKEN</span> set. Without it, a secured relay
-                refuses every request with an “unauthorized” notice. Stored in this browser only and sent as a bearer
-                credential — it is not a provider API key.
+                Hosted relays require{" "}
+                <span className="font-mono text-2xs">BLACKLETTER_RELAY_TOKEN</span> on the server and the matching
+                value here. Local loopback relays may omit it. Stored in this browser only and sent as a bearer
+                credential — it is not your OpenRouter API key.
               </p>
               <div className="flex items-center gap-2 mt-3">
                 <input
@@ -163,7 +163,7 @@ export function SettingsView() {
                     setRelayTokenValue(e.target.value);
                     setRelayToken(e.target.value);
                   }}
-                  placeholder="Relay token (leave empty when not required)"
+                  placeholder="Hosted relay access token"
                   aria-label="Model relay token"
                   autoComplete="off"
                   spellCheck={false}

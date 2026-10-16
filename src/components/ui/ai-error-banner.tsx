@@ -21,6 +21,8 @@ interface ErrorConfig {
 const ERROR_CONFIG: Record<string, ErrorConfig> = {
   NO_KEY: { icon: Key, title: "No API Key" },
   INVALID_KEY: { icon: Key, title: "Invalid API Key" },
+  RELAY_AUTH_NOT_CONFIGURED: { icon: Key, title: "Hosted Relay Setup Required" },
+  UNAUTHORIZED: { icon: Key, title: "Relay Token Required" },
   RATE_LIMITED: { icon: Clock, title: "Rate Limit Reached" },
   TIMEOUT: { icon: AlertCircle, title: "Request Timed Out" },
   NETWORK: { icon: WifiOff, title: "Network Error" },
@@ -37,7 +39,7 @@ const SHOW_RETRY = new Set([
 ]);
 
 const SHOW_SETTINGS = new Set([
-  "NO_KEY", "INVALID_KEY", "MODEL_NOT_FOUND",
+  "NO_KEY", "INVALID_KEY", "MODEL_NOT_FOUND", "RELAY_AUTH_NOT_CONFIGURED", "UNAUTHORIZED",
 ]);
 
 export function AiErrorBanner({ error, onRetry, onDismiss, onOpenSettings }: AiErrorBannerProps) {
@@ -76,7 +78,11 @@ export function AiErrorBanner({ error, onRetry, onDismiss, onOpenSettings }: AiE
     onRetry?.();
   }, [onRetry]);
 
-  const displayMessage = error.message || config.title;
+  const displayMessage = error.code === "RELAY_AUTH_NOT_CONFIGURED"
+    ? "Set BLACKLETTER_RELAY_TOKEN in the hosted relay environment, redeploy, then enter the same token in Workshop → Model relay access. Keep OPENROUTER_API_KEY server-side."
+    : error.code === "UNAUTHORIZED"
+      ? "Enter the matching hosted relay token in Workshop → Model relay access. This is separate from your OpenRouter API key."
+      : error.message || config.title;
 
   return (
     <motion.div
